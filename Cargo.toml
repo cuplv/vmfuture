@@ -1,6 +1,10 @@
 [package]
 name = "futurevm"
 version = "0.1.0"
-authors = ["Matthew Hammer <matthew.hammer@colorado.edu>"]
+authors = ["Matthew Hammer <matthew.hammer@colorado.edu>",
+           "Bor-Yuh Evan Chang <bec@colorado.edu>"]
 
-[dependencies]
+[dependencies.adapton]
+git = "https://github.com/cuplv/adapton.rust"
+branch = "dev"
+
