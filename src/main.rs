@@ -1,6 +1,6 @@
 //#[macro_use]
 extern crate adapton;
-use adapton::collections::{List};
+use adapton::collections::{List,ListIntro};
 //use adapton::engine::*;
 //use adapton::macros::*;
 //use std::rc::Rc;  
@@ -9,7 +9,7 @@ mod refl {
   use std::collections::HashMap;
   use adapton::collections::{List};
   
-  #[derive(Debug,PartialEq,Eq,Hash)]
+  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum Typ {
     Top,
     Arr(Box<Typ>, Box<Typ>),
@@ -30,10 +30,12 @@ mod obj {
   pub type Loc = usize;
   pub type Var = String;
 
-  #[derive(Debug,PartialEq,Eq,Hash)]
+  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum PExp {
     Lam(Var,Exp),
-    App(Val,Val),
+    // App: First sub-term is an expression, since we don't want to
+    // let-bind partial applications of multiple-argument functions.
+    App(Exp,Val), 
     Proj(Val,Val),
     Val(Val),
     Ann(Box<PExp>,PVal),
@@ -43,21 +45,21 @@ mod obj {
     Ext(Val,Val,Val),
     Let(Var,Exp,Exp),    
   }
-  #[derive(Debug,PartialEq,Eq,Hash)]
+  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub struct Exp {    
     pub exp:Box<PExp>,
     pub ann:super::refl::Ann,
   }
-  #[derive(Debug,PartialEq,Eq,Hash)]
+  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum PVal {
-    Clos(Env,Exp),
+    Thunk(Env,Exp),
     Dict(Dict),
     Num(isize),
     Str(String),
     Loc(Loc),
     Var(Var),    
   }
-  #[derive(Debug,PartialEq,Eq,Hash)]
+  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub struct Val {
     pub val:Box<PVal>,
     pub ann:super::refl::Ann,
@@ -66,6 +68,37 @@ mod obj {
   pub type Env  = List<(Var,Val)>;
   //pub type Dict = HashMap<Val,Val>;
   //pub type Env  = HashMap<Var,Val>;
+}
+
+macro_rules! oproj {
+  ( $val1:expr , $val2:expr ) => {{
+    let pexp = obj::PExp::Proj( $val1, $val2 );
+    obj::Exp{exp:Box::new(pexp), ann:refl::Typ::Top}
+  }}
+}
+
+macro_rules! ostr {
+  ( $str:expr ) => {{
+    let pval = obj::PVal::Str( $str.to_string() );
+    obj::Val{val:Box::new(pval), ann:refl::Typ::Top}
+  }}
+}
+
+macro_rules! othunk {
+  [ $body:expr ] => {{
+    let pval = obj::PVal::Thunk( <List<(obj::Var, obj::Val)> as ListIntro<_>>::nil(), $body );
+    obj::Val{val:Box::new(pval), ann:refl::Typ::Top}
+  }}
+}
+
+macro_rules! olam {
+  { $var:ident . $body:expr } => {{
+    let pexp = obj::PExp::Lam(stringify!($var).to_string(), $body);
+    obj::Exp{exp:Box::new(pexp), ann:refl::Typ::Top}
+  }};
+  { $var1:ident . ( $var2:ident).+ . $body:expr } => {{
+    olam!($var . olam!( ( $var2 ).+ . $body ) )
+  }}
 }
 
 macro_rules! olet {
@@ -79,6 +112,26 @@ macro_rules! olet {
 }
 
 macro_rules! ovar {
+  ( $var:ident ) => {{
+    obj::Val{val:Box::new(obj::PVal::Var(stringify!($var).to_string())),
+             ann:refl::Typ::Top}
+  }};
+}
+
+macro_rules! oapp {
+  ( $exp:expr ) => {{ $exp }}
+  ;
+  ( $exp:expr , $val:expr ) => {{
+    let pexp = obj::PExp::App($exp, $val);
+    obj::Exp{exp:Box::new(pexp), ann:refl::Typ::Top}
+  }}
+  ;
+  ( $exp:expr , $val1:expr , $( $val2:expr ),+ ) => {{
+    oapp!( oapp!($exp, $val1), $( $val2 ),+ )
+  }}  
+}
+
+macro_rules! ovare {
   ( $var:ident ) => {{ obj::Exp{exp:Box::new(obj::PExp::Val(
     obj::Val{val:Box::new(obj::PVal::Var(stringify!($var).to_string())),
              ann:refl::Typ::Top})),
@@ -102,9 +155,23 @@ fn main() {
   use obj::*;
 
   let example =
-    olet!{ authors   = ovar!(undef) ,
-           authorsUS = ovar!(undef) ;
-           ovar!(undef) };
+    olet!{ authors   = oapp!(ovare!(openDb), ostr!("authors.csv")),
+           authorsUS = oapp!(ovare!(filterDb), ovar!(authors),
+                             othunk![ olam!(author.
+                                            olet!{c = oproj!(ovar!(author), ostr!("citizenship")) ;
+                                                  oapp!(ovare!(eq), ovar!(c), ostr!("US"))}
+                                            )]
+                             ),
+           books     = oapp!(ovare!(openDb), ostr!("books.csv")),
+           authbksUS = oapp!(ovare!(joinDb),
+                             ovar!(authorsUS),
+                             othunk![ olam!(author. oproj!(ovar!(author), ostr!("name"))) ],
+                             ovar!(books),
+                             othunk![ olam!(book. oproj!(ovar!(book), ostr!("author"))) ]
+                             )
+           ;
+           ovare!(undef)
+    };
   
   println!("{:?}", example);
   drop(example)
