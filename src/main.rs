@@ -1,13 +1,15 @@
 //#[macro_use]
-//extern crate adapton;
-//use adapton::collections::*;
+extern crate adapton;
+use adapton::collections::{List};
 //use adapton::engine::*;
 //use adapton::macros::*;
 //use std::rc::Rc;  
 
 mod refl {
   use std::collections::HashMap;
-
+  use adapton::collections::{List};
+  
+  #[derive(Debug,PartialEq,Eq,Hash)]
   pub enum Typ {
     Top,
     Arr(Box<Typ>, Box<Typ>),
@@ -16,15 +18,19 @@ mod refl {
     Dict(Box<Dict>),
     Ref(Box<Typ>)
   }
-  pub type Dict = HashMap<super::obj::Val,Typ>;
+  //pub type Dict = HashMap<super::obj::Val,Typ>;
+  pub type Dict = List<(super::obj::Val, Typ)>;
   pub type Ann = Typ;
 }
 
 mod obj {
   use std::collections::HashMap;  
-
+  use adapton::collections::{List};
+  
   pub type Loc = usize;
   pub type Var = String;
+
+  #[derive(Debug,PartialEq,Eq,Hash)]
   pub enum PExp {
     Lam(Var,Exp),
     App(Val,Val),
@@ -37,10 +43,12 @@ mod obj {
     Ext(Val,Val,Val),
     Let(Var,Exp,Exp),    
   }
-  pub struct Exp {
-    exp:Box<PExp>,
-    ann:super::refl::Ann,
+  #[derive(Debug,PartialEq,Eq,Hash)]
+  pub struct Exp {    
+    pub exp:Box<PExp>,
+    pub ann:super::refl::Ann,
   }
+  #[derive(Debug,PartialEq,Eq,Hash)]
   pub enum PVal {
     Clos(Env,Exp),
     Dict(Dict),
@@ -49,12 +57,30 @@ mod obj {
     Loc(Loc),
     Var(Var),    
   }
+  #[derive(Debug,PartialEq,Eq,Hash)]
   pub struct Val {
-    val:Box<PVal>,
-    ann:super::refl::Ann,
+    pub val:Box<PVal>,
+    pub ann:super::refl::Ann,
   }
-  pub type Dict = HashMap<Val,Val>;
-  pub type Env  = HashMap<Var,Val>;
+  pub type Dict = List<(Val,Val)>;
+  pub type Env  = List<(Var,Val)>;
+  //pub type Dict = HashMap<Val,Val>;
+  //pub type Env  = HashMap<Var,Val>;
+}
+
+macro_rules! olet {
+  { $var:ident = $rhs:expr ; $body:expr } => {{
+    obj::Exp{exp:Box::new(obj::PExp::Let(stringify!($var).to_string(), $rhs, $body)),
+             ann:refl::Typ::Top}
+  }};
+}
+
+macro_rules! ovar {
+  ( $var:ident ) => {{ obj::Exp{exp:Box::new(obj::PExp::Val(
+    obj::Val{val:Box::new(obj::PVal::Var(stringify!($var).to_string())),
+             ann:refl::Typ::Top})),
+                                ann:refl::Typ::Top }
+  }};
 }
 
 // macro_rules! olet (
@@ -71,6 +97,13 @@ mod obj {
 
 fn main() {
   use obj::*;
+
+  let example =
+    olet!{ authors = ovar!(undef) ;
+           ovar!(undef) };
+  
+  println!("{:?}", example);
+  drop(example)
   
   // let example = ( olet! "authors"    := oapp!(ovar!("openDb", ostr!("authors.csv"))) ;
   //                 olet! "authorsUS"  := oapp!(oapp!(
