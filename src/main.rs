@@ -70,8 +70,11 @@ mod obj {
 
 macro_rules! olet {
   { $var:ident = $rhs:expr ; $body:expr } => {{
-    obj::Exp{exp:Box::new(obj::PExp::Let(stringify!($var).to_string(), $rhs, $body)),
-             ann:refl::Typ::Top}
+    let pexp = obj::PExp::Let(stringify!($var).to_string(), $rhs, $body);
+    obj::Exp{exp:Box::new(pexp), ann:refl::Typ::Top}
+  }};
+  { $var1:ident = $rhs1:expr , $( $var2:ident = $rhs2:expr ),+ ; $body:expr } => {{
+    olet!($var1 = $rhs1 ; olet!( $( $var2 = $rhs2 ),+ ; $body ))
   }};
 }
 
@@ -99,7 +102,8 @@ fn main() {
   use obj::*;
 
   let example =
-    olet!{ authors = ovar!(undef) ;
+    olet!{ authors   = ovar!(undef) ,
+           authorsUS = ovar!(undef) ;
            ovar!(undef) };
   
   println!("{:?}", example);
