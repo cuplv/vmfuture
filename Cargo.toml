@@ -2,10 +2,10 @@
 name = "futurevm"
 version = "0.1.0"
 authors = ["Matthew Hammer <matthew.hammer@colorado.edu>",
-           "Bor-Yuh Evan Chang <bec@colorado.edu>"]
+           "Bor-Yuh Evan Chang <bec@colorado.edu>",
+           "David Van Horn <dvh@cs.umd.edu>", ]
 
 [dependencies.adapton]
-path = "/Users/hammer/adapton"
-# git = "https://github.com/cuplv/adapton.rust"
-# branch = "dev"
-
+# path = "/Users/hammer/adapton"
+git = "https://github.com/cuplv/adapton.rust"
+branch = "dev"
