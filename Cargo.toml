@@ -5,6 +5,9 @@ authors = ["Matthew Hammer <matthew.hammer@colorado.edu>",
            "Bor-Yuh Evan Chang <bec@colorado.edu>",
            "David Van Horn <dvh@cs.umd.edu>", ]
 
+[dependencies]
+csv = "0.14"
+
 [dependencies.adapton]
 # path = "/Users/hammer/adapton"
 git = "https://github.com/cuplv/adapton.rust"

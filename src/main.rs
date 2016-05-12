@@ -1,3 +1,5 @@
+extern crate csv;
+
 //#[macro_use]
 extern crate adapton;
 use adapton::collections::*;
@@ -38,16 +40,16 @@ mod obj {
     pub store: List<(Loc, Val)>,
     pub env:   List<(Var, Val)>,
     /// TODO: Do we need an environment for App frames? It seems like we do not.
-    pub stack: List<Eval>,
+    pub stack: List<Frame>,
     /// Using a PExp here, not an Exp, because of https://github.com/rust-lang/rust/issues/16223
     pub pexp:  PExp, 
   }
   /// Evaluation Contexts (one "Frame" only); The full context is
   /// given by a stack of frames.
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
-  pub enum Eval {
-    /// Apply the function of the current computation to a (closed)
-    /// value term, given by this frame.
+  pub enum Frame {
+    /// As a function, apply the current computation to the (closed)
+    /// value argument given by this frame.
     App(Val),
     /// Using the frame's variable and environment, bind the (closed)
     /// value produced by the current computation and run the
@@ -211,6 +213,7 @@ pub fn initial_state(e:obj::PExp) -> obj::State {
 
 pub fn small_step(st:obj::State) -> Option<obj::State> {
   use obj::*;
+  use obj::PExp::*;
   use adapton::collections::*;
 
   if is_final(&st.pexp) {
@@ -218,38 +221,38 @@ pub fn small_step(st:obj::State) -> Option<obj::State> {
     else {
       let (fr, stack) = list_pop(st.stack);
       match (fr, st.pexp) {
-        (Eval::App(v), PExp::Lam(x,e)) =>        Some(State{env:list_push(st.env,(x,v)), stack:stack, pexp:*e.pexp, ..st}),
-        (Eval::Let(x,fr_env,e), PExp::Ret(v)) => Some(State{env:list_push(fr_env,(x,v)), stack:stack, pexp:*e.pexp, ..st}),
+        (Frame::App(v), Lam(x,e)) =>        Some(State{env:list_push(st.env,(x,v)), stack:stack, pexp:*e.pexp, ..st}),
+        (Frame::Let(x,fr_env,e), Ret(v)) => Some(State{env:list_push(fr_env,(x,v)), stack:stack, pexp:*e.pexp, ..st}),
         _ => panic!("invalid state: current stack and (final) expression do not match.")
       }}
   }
   else {
     let st = match st.pexp {
-      PExp::Ann(e,_) => { State{pexp:*e, ..st} }
-      PExp::App(e, v) => {
-        let stack = list_push(st.stack, Eval::App(close_val(&st.env, v)));
+      Ann(e,_) => { State{pexp:*e, ..st} }
+      App(e, v) => {
+        let stack = list_push(st.stack, Frame::App(close_val(&st.env, v)));
         State{stack:stack, pexp:*e.pexp, ..st}
       }
-      PExp::Let(x,e1,e2) => {
-        let stack = list_push(st.stack, Eval::Let(x,st.env.clone(),e2));
+      Let(x,e1,e2) => {
+        let stack = list_push(st.stack, Frame::Let(x,st.env.clone(),e2));
         State{stack:stack, pexp:*e1.pexp, ..st}
       }
-      PExp::Force(v) => {
+      Force(v) => {
         match *close_val(&st.env,v).pval {
           PVal::Thunk(env,e) => State{env:env, pexp:*e.pexp, ..st},
           _ => panic!("stuck: forced a value that is not a thunk")
         }
       }      
-      PExp::Ref(v) => unimplemented!(),
-      PExp::Get(v) => unimplemented!(),
+      Ref(v) => unimplemented!(),
+      Get(v) => unimplemented!(),
       
-      PExp::Proj(v1,v2) => unimplemented!(),
-      PExp::Set(v1,v2) => unimplemented!(),
-      PExp::Ext(v1,v2,v3) => unimplemented!(),
+      Proj(v1,v2) => unimplemented!(),
+      Set(v1,v2) => unimplemented!(),
+      Ext(v1,v2,v3) => unimplemented!(),
       
       // These are terminal cases, and thus are excluded in this match:
-      obj::PExp::Ret(_)   => unreachable!(),
-      obj::PExp::Lam(_,_) => unreachable!(),
+      Ret(_)   => unreachable!(),
+      Lam(_,_) => unreachable!(),
     };
     Some(st)
   }
