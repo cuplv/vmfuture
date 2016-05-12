@@ -6,7 +6,7 @@ use adapton::collections::{List,ListIntro};
 //use std::rc::Rc;  
 
 mod refl {
-  use std::collections::HashMap;
+  //use std::collections::HashMap;
   use adapton::collections::{List};
   
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
@@ -24,20 +24,37 @@ mod refl {
 }
 
 mod obj {
-  use std::collections::HashMap;  
+  //use std::collections::HashMap;
   use adapton::collections::{List};
   
   pub type Loc = usize;
   pub type Var = String;
 
+  pub fn is_final(exp:&PExp) -> bool {
+    match *exp {
+      PExp::Ret(_)   => true,
+      PExp::Lam(_,_) => true,
+      PExp::Ann(ref e, _) => is_final(e),
+      _ => false,
+    }
+  }
+
+  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
+  pub enum Eval {
+    App(Box<Eval>, Val),
+    Let(Box<Eval>, Exp),
+    Hole,
+  }
+  
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum PExp {
+    Ret(Val),
     Lam(Var,Exp),
     // App: First sub-term is an expression, since we don't want to
     // let-bind partial applications of multiple-argument functions.
+    // See oapp! macro, defined below.
     App(Exp,Val), 
     Proj(Val,Val),
-    Val(Val),
     Ann(Box<PExp>,PVal),
     Ref(Val),
     Get(Val),
@@ -132,29 +149,17 @@ macro_rules! oapp {
 }
 
 macro_rules! ovare {
-  ( $var:ident ) => {{ obj::Exp{exp:Box::new(obj::PExp::Val(
+  ( $var:ident ) => {{ obj::Exp{exp:Box::new(obj::PExp::Ret(
     obj::Val{val:Box::new(obj::PVal::Var(stringify!($var).to_string())),
              ann:refl::Typ::Top})),
                                 ann:refl::Typ::Top }
   }};
 }
 
-// macro_rules! olet (
-//   ( $var:ident := $rhs:expr ; $body:expr ) => { 1
-//     // obj::Exp{exp:obj::Pexp::Let
-//     //          ("foo",
-//     //           obj::Exp{exp:Box::new($rhs); ann:refl::Typ::Top},
-//     //           obj::Exp{exp:Box::new($body); ann:refl::Typ::Top}
-//     //           ),
-//     //          ann:refl::Typ::Top
-//     // }
-//   };
-//   )
-
 fn main() {
-  use obj::*;
+  //use obj::*;
 
-  let example =
+  let example : obj::Exp =
     olet!{ authors   = oapp!(ovare!(openDb), ostr!("authors.csv")),
            authorsUS = oapp!(ovare!(filterDb), ovar!(authors),
                              othunk![ olam!(author.
@@ -174,15 +179,5 @@ fn main() {
     };
   
   println!("{:?}", example);
-  drop(example)
-  
-  // let example = ( olet! "authors"    := oapp!(ovar!("openDb", ostr!("authors.csv"))) ;
-  //                 olet! "authorsUS"  := oapp!(oapp!(
-  //                   ovar!("filterDb", ovar!("authors"),
-  //                         olam!("x", oapp!(oapp!(ovar!("=="),
-  //                                                oproj!(ovar!("x"),
-  //                                                       ostr!("citizenship"),
-  //                                                       )), ostr!("US"))))
-  //                     )) ;
-  //                 ovar!("authorsUS") );
+  drop(example) 
 }
