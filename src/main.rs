@@ -25,11 +25,19 @@ mod refl {
 
 mod obj {
   //use std::collections::HashMap;
-  use adapton::collections::{List,ListElim};
+  use adapton::collections::*;
   
   pub type Loc = usize;
   pub type Var = String;
 
+  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
+  pub struct State {
+    store: List<(Loc, Val)>,
+    env:   List<(Var, Val)>,
+    stack: List<(Env, Eval)>,
+    exp:   PExp,
+  }
+  
   pub fn is_final(exp:&PExp) -> bool {
     match *exp {
       PExp::Ret(_)   => true,
@@ -39,17 +47,9 @@ mod obj {
     }
   }
 
-  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
-  pub struct State {
-    store: List<(Loc, Val)>,
-    env:   List<(Var, Val)>,
-    stack: List<(Env, Eval)>,
-    exp:   PExp,
-  }
-
-  pub fn small_step(st:State) -> PExp {
+  pub fn small_step(st:State) -> State {
     if is_final(&st.exp) {
-      if <List<_> as ListElim<_>>::is_empty(&st.stack) {
+      if list_is_empty(&st.stack) {
         panic!("state is halted: {:?}", st)
       }
       else {
