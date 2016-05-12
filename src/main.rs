@@ -187,7 +187,15 @@ pub fn is_final(exp:&obj::PExp) -> bool {
 }
 
 pub fn close_pval(env:&obj::Env, v:obj::PVal) -> obj::PVal {
-  panic!("")
+  use obj::PVal::*;
+  match v {
+    Thunk(env2,e) => Thunk(env2,e),
+    Dict(dict)    => panic!("TODO: fold over dictionary"),
+    Num(n)        => Num(n),
+    Str(s)        => Str(s),
+    Loc(l)        => Loc(l),
+    Var(x)        => panic!("TODO Lookup variable {:?}", x),
+  }
 }
 
 pub fn close_val(env:&obj::Env, v:obj::Val) -> obj::Val {
