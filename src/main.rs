@@ -35,8 +35,10 @@ mod obj {
   pub struct State {
     pub store: List<(Loc, Val)>,
     pub env:   List<(Var, Val)>,
-    pub stack: List<(Env, Eval)>,
-    pub pexp:  PExp,
+    /// TODO: Do we need an environment for App frames? It seems like we do not.
+    pub stack: List<(Env, Eval)>, 
+    /// Using a PExp here, not an Exp, because of https://github.com/rust-lang/rust/issues/16223
+    pub pexp:  PExp, 
   }
     
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
@@ -172,36 +174,51 @@ pub fn is_final(exp:&obj::PExp) -> bool {
   }
 }
 
-pub fn small_step(st:obj::State) -> obj::State {
+pub fn small_step(st:obj::State) -> Option<obj::State> {
   use obj::*;
+  use adapton::collections::*;
+
   if is_final(&st.pexp) {
-    if list_is_empty(&st.stack) {
-      panic!("state is halted: {:?}", st)
-    }
+    if list_is_empty(&st.stack) { None }
     else {
-      // TODO: Pop the top eval frame.
-      // Pattern match the top eval frame against the current exp; update saved env.
-      panic!("")
-    }
+      let ((env,eval), stack) = list_pop(st.stack);
+      match (eval, st.pexp) {
+        (Eval::App(v), PExp::Lam(x,e)) =>
+          Some(State{env:list_push(env, (x,v)),
+                     stack:stack, pexp:*e.pexp, ..st}),
+        (Eval::Let(x,e), PExp::Ret(v)) =>
+          Some(State{env:list_push(env, (x,v)),
+                     stack:stack, pexp:*e.pexp, ..st}),
+        _ => panic!("invalid state: current stack and (final) expression do not match.")
+      }}
   }
   else {
-    match st.pexp {
+    let st = match st.pexp {
       PExp::App(e, v) => {
-        let frame = (st.env.clone(), Eval::App(v.clone()));
+        let frame = (st.env.clone(), Eval::App(v));
         let stack = list_push(st.stack, frame);
-        //State{store:st.store, stack:stack, env:st.env, exp:e.clone()}
         State{stack:stack, pexp:*e.pexp, ..st}
       }
-      // PExp::Proj(val1,val2) => unimplemented!(),
-      // PExp::Ann(exp,val) => unimplemented!(),
-      // PExp::Ref(val) => unimplemented!(),
-      // PExp::Get(val) =>  unimplemented!(),
-      // PExp::Set(val1,val2) => unimplemented!(),
-      // PExp::Ext(val1,val2,val3) => unimplemented!(),
-      // PExp::Let(var,exp1,exp2) => unimplemented!(),
-      PExp::Let(_,_,_) => unimplemented!(),
-      _ => unreachable!(),
-    }
+      PExp::Ann(e,_) => {
+        State{pexp:*e, ..st}
+      }
+      PExp::Let(x,e1,e2) => {
+        let frame = (st.env.clone(), Eval::Let(x,e2));
+        let stack = list_push(st.stack, frame);
+        State{stack:stack, pexp:*e1.pexp, ..st}
+      }
+      PExp::Ref(v) => unimplemented!(),
+      PExp::Get(v) => unimplemented!(),
+      
+      PExp::Proj(v1,v2) => unimplemented!(),
+      PExp::Set(v1,v2) => unimplemented!(),
+      PExp::Ext(v1,v2,v3) => unimplemented!(),
+      
+      // These are terminal cases, and thus are excluded in this match:
+      obj::PExp::Ret(_)   => unreachable!(),
+      obj::PExp::Lam(_,_) => unreachable!(),
+    };
+    Some(st)
   }
 }
 
