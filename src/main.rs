@@ -39,6 +39,33 @@ mod obj {
     }
   }
 
+  pub struct State {
+    store:List<(Loc, Val)>,
+    env:  List<(Var, Val)>,
+    eval: Eval,
+    exp:  PExp,
+  }
+
+  pub fn small_step(st:State) -> PExp {
+    if is_final(&st.exp) {
+      panic!("")
+    }
+    else {
+      match st.exp {
+        PExp::App(exp,val)  => unimplemented!(),
+        PExp::Proj(val1,val2) => unimplemented!(),
+        PExp::Ann(exp,val) => unimplemented!(),
+        PExp::Ref(val) => unimplemented!(),
+        PExp::Get(val) =>  unimplemented!(),
+        PExp::Set(val1,val2) => unimplemented!(),
+        PExp::Ext(val1,val2,val3) => unimplemented!(),
+        PExp::Let(var,exp1,exp2) => unimplemented!(),
+        _ => unreachable!(),
+      }
+    }
+  }
+
+  
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum Eval {
     App(Box<Eval>, Val),
