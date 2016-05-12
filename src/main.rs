@@ -1,6 +1,6 @@
 //#[macro_use]
 extern crate adapton;
-use adapton::collections::{List,ListIntro,ListElim};
+use adapton::collections::*;
 //use adapton::engine::*;
 //use adapton::macros::*;
 //use std::rc::Rc;  
@@ -23,7 +23,8 @@ mod refl {
   pub type Ann = Typ;
 }
 
-mod obj {
+mod obj {  
+  //use super::*;
   //use std::collections::HashMap;
   use adapton::collections::*;
   
@@ -32,48 +33,12 @@ mod obj {
 
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub struct State {
-    store: List<(Loc, Val)>,
-    env:   List<(Var, Val)>,
-    stack: List<(Env, Eval)>,
-    exp:   PExp,
+    pub store: List<(Loc, Val)>,
+    pub env:   List<(Var, Val)>,
+    pub stack: List<(Env, Eval)>,
+    pub pexp:  PExp,
   }
-  
-  pub fn is_final(exp:&PExp) -> bool {
-    match *exp {
-      PExp::Ret(_)   => true,
-      PExp::Lam(_,_) => true,
-      PExp::Ann(ref e, _) => is_final(e),
-      _ => false,
-    }
-  }
-
-  pub fn small_step(st:State) -> State {
-    if is_final(&st.exp) {
-      if list_is_empty(&st.stack) {
-        panic!("state is halted: {:?}", st)
-      }
-      else {
-        // TODO: Pop the top eval frame.
-        // Pattern match the top eval frame against the current exp; update saved env.
-        panic!("")
-      }
-    }
-    else {
-      match st.exp {
-        PExp::App(exp,val)  => unimplemented!(),
-        PExp::Proj(val1,val2) => unimplemented!(),
-        PExp::Ann(exp,val) => unimplemented!(),
-        PExp::Ref(val) => unimplemented!(),
-        PExp::Get(val) =>  unimplemented!(),
-        PExp::Set(val1,val2) => unimplemented!(),
-        PExp::Ext(val1,val2,val3) => unimplemented!(),
-        PExp::Let(var,exp1,exp2) => unimplemented!(),
-        _ => unreachable!(),
-      }
-    }
-  }
-
-  
+    
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum Eval {
     App(Val),
@@ -98,7 +63,7 @@ mod obj {
   }
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub struct Exp {    
-    pub exp:Box<PExp>,
+    pub pexp:Box<PExp>,
     pub ann:super::refl::Ann,
   }
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
@@ -121,13 +86,15 @@ mod obj {
   //pub type Env  = HashMap<Var,Val>;
 }
 
+#[macro_export]
 macro_rules! oproj {
   ( $val1:expr , $val2:expr ) => {{
     let pexp = obj::PExp::Proj( $val1, $val2 );
-    obj::Exp{exp:Box::new(pexp), ann:refl::Typ::Top}
+    obj::Exp{pexp:Box::new(pexp), ann:refl::Typ::Top}
   }}
 }
 
+#[macro_export]
 macro_rules! ostr {
   ( $str:expr ) => {{
     let pval = obj::PVal::Str( $str.to_string() );
@@ -135,6 +102,7 @@ macro_rules! ostr {
   }}
 }
 
+#[macro_export]
 macro_rules! othunk {
   [ $body:expr ] => {{
     let pval = obj::PVal::Thunk( <List<(obj::Var, obj::Val)> as ListIntro<_>>::nil(), $body );
@@ -142,26 +110,29 @@ macro_rules! othunk {
   }}
 }
 
+#[macro_export]
 macro_rules! olam {
   { $var:ident . $body:expr } => {{
     let pexp = obj::PExp::Lam(stringify!($var).to_string(), $body);
-    obj::Exp{exp:Box::new(pexp), ann:refl::Typ::Top}
+    obj::Exp{pexp:Box::new(pexp), ann:refl::Typ::Top}
   }};
   { $var1:ident . ( $var2:ident).+ . $body:expr } => {{
     olam!($var . olam!( ( $var2 ).+ . $body ) )
   }}
 }
 
+#[macro_export]
 macro_rules! olet {
   { $var:ident = $rhs:expr ; $body:expr } => {{
     let pexp = obj::PExp::Let(stringify!($var).to_string(), $rhs, $body);
-    obj::Exp{exp:Box::new(pexp), ann:refl::Typ::Top}
+    obj::Exp{pexp:Box::new(pexp), ann:refl::Typ::Top}
   }};
   { $var1:ident = $rhs1:expr , $( $var2:ident = $rhs2:expr ),+ ; $body:expr } => {{
     olet!($var1 = $rhs1 ; olet!( $( $var2 = $rhs2 ),+ ; $body ))
   }};
 }
 
+#[macro_export]
 macro_rules! ovar {
   ( $var:ident ) => {{
     obj::Val{val:Box::new(obj::PVal::Var(stringify!($var).to_string())),
@@ -169,12 +140,13 @@ macro_rules! ovar {
   }};
 }
 
+#[macro_export]
 macro_rules! oapp {
   ( $exp:expr ) => {{ $exp }}
   ;
   ( $exp:expr , $val:expr ) => {{
     let pexp = obj::PExp::App($exp, $val);
-    obj::Exp{exp:Box::new(pexp), ann:refl::Typ::Top}
+    obj::Exp{pexp:Box::new(pexp), ann:refl::Typ::Top}
   }}
   ;
   ( $exp:expr , $val1:expr , $( $val2:expr ),+ ) => {{
@@ -182,12 +154,55 @@ macro_rules! oapp {
   }}  
 }
 
+#[macro_export]
 macro_rules! ovare {
-  ( $var:ident ) => {{ obj::Exp{exp:Box::new(obj::PExp::Ret(
+  ( $var:ident ) => {{ obj::Exp{pexp:Box::new(obj::PExp::Ret(
     obj::Val{val:Box::new(obj::PVal::Var(stringify!($var).to_string())),
              ann:refl::Typ::Top})),
                                 ann:refl::Typ::Top }
   }};
+}
+
+pub fn is_final(exp:&obj::PExp) -> bool {
+  match *exp {
+    obj::PExp::Ret(_)   => true,
+    obj::PExp::Lam(_,_) => true,
+    obj::PExp::Ann(ref e, _) => is_final(e),
+    _ => false,
+  }
+}
+
+pub fn small_step(st:obj::State) -> obj::State {
+  use obj::*;
+  if is_final(&st.pexp) {
+    if list_is_empty(&st.stack) {
+      panic!("state is halted: {:?}", st)
+    }
+    else {
+      // TODO: Pop the top eval frame.
+      // Pattern match the top eval frame against the current exp; update saved env.
+      panic!("")
+    }
+  }
+  else {
+    match st.pexp {
+      PExp::App(e, v) => {
+        let frame = (st.env.clone(), Eval::App(v.clone()));
+        let stack = list_push(st.stack, frame);
+        //State{store:st.store, stack:stack, env:st.env, exp:e.clone()}
+        State{stack:stack, pexp:*e.pexp, ..st}
+      }
+      // PExp::Proj(val1,val2) => unimplemented!(),
+      // PExp::Ann(exp,val) => unimplemented!(),
+      // PExp::Ref(val) => unimplemented!(),
+      // PExp::Get(val) =>  unimplemented!(),
+      // PExp::Set(val1,val2) => unimplemented!(),
+      // PExp::Ext(val1,val2,val3) => unimplemented!(),
+      // PExp::Let(var,exp1,exp2) => unimplemented!(),
+      PExp::Let(_,_,_) => unimplemented!(),
+      _ => unreachable!(),
+    }
+  }
 }
 
 fn main() {
