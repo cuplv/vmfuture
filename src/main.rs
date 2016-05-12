@@ -31,29 +31,39 @@ mod obj {
   pub type Loc = usize;
   pub type Var = String;
 
+  /// State of VM Evaluation:
+  /// A Store, an Environment, a Stack (of Evaluation Frames), and an expression.
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub struct State {
     pub store: List<(Loc, Val)>,
     pub env:   List<(Var, Val)>,
     /// TODO: Do we need an environment for App frames? It seems like we do not.
-    pub stack: List<(Env, Eval)>, 
+    pub stack: List<Eval>,
     /// Using a PExp here, not an Exp, because of https://github.com/rust-lang/rust/issues/16223
     pub pexp:  PExp, 
   }
-    
+  /// Evaluation Contexts (one "Frame" only); The full context is
+  /// given by a stack of frames.
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum Eval {
+    /// Apply the function of the current computation to a (closed)
+    /// value term, given by this frame.
     App(Val),
-    Let(Var, Exp),
+    /// Using the frame's variable and environment, bind the (closed)
+    /// value produced by the current computation and run the
+    /// expression given by this frame.
+    Let(Var, Env, Exp), 
   }
-  
+  /// Pre-Expressions
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum PExp {
+    Force(Val),
     Ret(Val),
     Lam(Var,Exp),
     // App: First sub-term is an expression, since we don't want to
     // let-bind partial applications of multiple-argument functions.
-    // See oapp! macro, defined below.
+    // See oapp! macro, defined below.  This syntactic form is in the
+    // style of CBPV.
     App(Exp,Val), 
     Proj(Val,Val),
     Ann(Box<PExp>,PVal),
@@ -63,11 +73,13 @@ mod obj {
     Ext(Val,Val,Val),
     Let(Var,Exp,Exp),    
   }
+  /// Expressions: A Pre-Expression, along with an annotation
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub struct Exp {    
     pub pexp:Box<PExp>,
     pub ann:super::refl::Ann,
   }
+  /// Pre-Values
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum PVal {
     Thunk(Env,Exp),
@@ -77,9 +89,10 @@ mod obj {
     Loc(Loc),
     Var(Var),    
   }
+  /// Values: A Pre-Value, along with an annotation
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub struct Val {
-    pub val:Box<PVal>,
+    pub pval:Box<PVal>,
     pub ann:super::refl::Ann,
   }
   pub type Dict = List<(Val,Val)>;
@@ -100,7 +113,7 @@ macro_rules! oproj {
 macro_rules! ostr {
   ( $str:expr ) => {{
     let pval = obj::PVal::Str( $str.to_string() );
-    obj::Val{val:Box::new(pval), ann:refl::Typ::Top}
+    obj::Val{pval:Box::new(pval), ann:refl::Typ::Top}
   }}
 }
 
@@ -108,7 +121,7 @@ macro_rules! ostr {
 macro_rules! othunk {
   [ $body:expr ] => {{
     let pval = obj::PVal::Thunk( <List<(obj::Var, obj::Val)> as ListIntro<_>>::nil(), $body );
-    obj::Val{val:Box::new(pval), ann:refl::Typ::Top}
+    obj::Val{pval:Box::new(pval), ann:refl::Typ::Top}
   }}
 }
 
@@ -137,7 +150,7 @@ macro_rules! olet {
 #[macro_export]
 macro_rules! ovar {
   ( $var:ident ) => {{
-    obj::Val{val:Box::new(obj::PVal::Var(stringify!($var).to_string())),
+    obj::Val{pval:Box::new(obj::PVal::Var(stringify!($var).to_string())),
              ann:refl::Typ::Top}
   }};
 }
@@ -157,9 +170,9 @@ macro_rules! oapp {
 }
 
 #[macro_export]
-macro_rules! ovare {
-  ( $var:ident ) => {{ obj::Exp{pexp:Box::new(obj::PExp::Ret(
-    obj::Val{val:Box::new(obj::PVal::Var(stringify!($var).to_string())),
+macro_rules! ovarf {
+  ( $var:ident ) => {{ obj::Exp{pexp:Box::new(obj::PExp::Force(
+    obj::Val{pval:Box::new(obj::PVal::Var(stringify!($var).to_string())),
              ann:refl::Typ::Top})),
                                 ann:refl::Typ::Top }
   }};
@@ -169,9 +182,23 @@ pub fn is_final(exp:&obj::PExp) -> bool {
   match *exp {
     obj::PExp::Ret(_)   => true,
     obj::PExp::Lam(_,_) => true,
-    obj::PExp::Ann(ref e, _) => is_final(e),
     _ => false,
   }
+}
+
+pub fn close_pval(env:&obj::Env, v:obj::PVal) -> obj::PVal {
+  panic!("")
+}
+
+pub fn close_val(env:&obj::Env, v:obj::Val) -> obj::Val {
+  obj::Val{pval:Box::new(close_pval(env, *v.pval)), ..v}
+}
+
+pub fn initial_state(e:obj::PExp) -> obj::State {
+  obj::State{store:<List<_> as ListIntro<_>>::nil(),
+             stack:<List<_> as ListIntro<_>>::nil(),
+             env:  <List<_> as ListIntro<_>>::nil(),
+             pexp: e}
 }
 
 pub fn small_step(st:obj::State) -> Option<obj::State> {
@@ -181,32 +208,30 @@ pub fn small_step(st:obj::State) -> Option<obj::State> {
   if is_final(&st.pexp) {
     if list_is_empty(&st.stack) { None }
     else {
-      let ((env,eval), stack) = list_pop(st.stack);
-      match (eval, st.pexp) {
-        (Eval::App(v), PExp::Lam(x,e)) =>
-          Some(State{env:list_push(env, (x,v)),
-                     stack:stack, pexp:*e.pexp, ..st}),
-        (Eval::Let(x,e), PExp::Ret(v)) =>
-          Some(State{env:list_push(env, (x,v)),
-                     stack:stack, pexp:*e.pexp, ..st}),
+      let (fr, stack) = list_pop(st.stack);
+      match (fr, st.pexp) {
+        (Eval::App(v), PExp::Lam(x,e)) =>        Some(State{env:list_push(st.env,(x,v)), stack:stack, pexp:*e.pexp, ..st}),
+        (Eval::Let(x,fr_env,e), PExp::Ret(v)) => Some(State{env:list_push(fr_env,(x,v)), stack:stack, pexp:*e.pexp, ..st}),
         _ => panic!("invalid state: current stack and (final) expression do not match.")
       }}
   }
   else {
     let st = match st.pexp {
+      PExp::Ann(e,_) => { State{pexp:*e, ..st} }
       PExp::App(e, v) => {
-        let frame = (st.env.clone(), Eval::App(v));
-        let stack = list_push(st.stack, frame);
+        let stack = list_push(st.stack, Eval::App(close_val(&st.env, v)));
         State{stack:stack, pexp:*e.pexp, ..st}
       }
-      PExp::Ann(e,_) => {
-        State{pexp:*e, ..st}
-      }
       PExp::Let(x,e1,e2) => {
-        let frame = (st.env.clone(), Eval::Let(x,e2));
-        let stack = list_push(st.stack, frame);
+        let stack = list_push(st.stack, Eval::Let(x,st.env.clone(),e2));
         State{stack:stack, pexp:*e1.pexp, ..st}
       }
+      PExp::Force(v) => {
+        match *close_val(&st.env,v).pval {
+          PVal::Thunk(env,e) => State{env:env, pexp:*e.pexp, ..st},
+          _ => panic!("stuck: forced a value that is not a thunk")
+        }
+      }      
       PExp::Ref(v) => unimplemented!(),
       PExp::Get(v) => unimplemented!(),
       
@@ -224,26 +249,32 @@ pub fn small_step(st:obj::State) -> Option<obj::State> {
 
 fn main() {
   //use obj::*;
-
+  
   let example : obj::Exp =
-    olet!{ authors   = oapp!(ovare!(openDb), ostr!("authors.csv")),
-           authorsUS = oapp!(ovare!(filterDb), ovar!(authors),
+    olet!{ authors   = oapp!(ovarf!(openDb), ostr!("authors.csv")),
+           authorsUS = oapp!(ovarf!(filterDb), ovar!(authors),
                              othunk![ olam!(author.
                                             olet!{c = oproj!(ovar!(author), ostr!("citizenship")) ;
-                                                  oapp!(ovare!(eq), ovar!(c), ostr!("US"))}
+                                                  oapp!(ovarf!(eq), ovar!(c), ostr!("US"))}
                                             )]
                              ),
-           books     = oapp!(ovare!(openDb), ostr!("books.csv")),
-           authbksUS = oapp!(ovare!(joinDb),
+           books     = oapp!(ovarf!(openDb), ostr!("books.csv")),
+           authbksUS = oapp!(ovarf!(joinDb),
                              ovar!(authorsUS),
                              othunk![ olam!(author. oproj!(ovar!(author), ostr!("name"))) ],
                              ovar!(books),
                              othunk![ olam!(book. oproj!(ovar!(book), ostr!("author"))) ]
                              )
            ;
-           ovare!(undef)
+           ovarf!(halt)
     };
-  
-  println!("{:?}", example);
-  drop(example) 
+
+  let mut st = initial_state(*example.pexp);
+  loop {
+    println!("{:?}\n", st);
+    match small_step(st) {
+      None      => break,
+      Some(st2) => st = st2
+    }
+  }
 }
