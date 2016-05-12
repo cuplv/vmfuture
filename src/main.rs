@@ -158,6 +158,15 @@ macro_rules! ovar {
 }
 
 #[macro_export]
+macro_rules! ovarf {
+  ( $var:ident ) => {{
+    let v = ovar!($var);
+    obj::Exp{pexp:Box::new(obj::PExp::Force(v)),
+             ann:refl::Typ::Top}
+  }};
+}
+
+#[macro_export]
 macro_rules! oapp {
   ( $exp:expr ) => {{ $exp }}
   ;
@@ -169,15 +178,6 @@ macro_rules! oapp {
   ( $exp:expr , $val1:expr , $( $val2:expr ),+ ) => {{
     oapp!( oapp!($exp, $val1), $( $val2 ),+ )
   }}  
-}
-
-#[macro_export]
-macro_rules! ovarf {
-  ( $var:ident ) => {{ obj::Exp{pexp:Box::new(obj::PExp::Force(
-    obj::Val{pval:Box::new(obj::PVal::Var(stringify!($var).to_string())),
-             ann:refl::Typ::Top})),
-                                ann:refl::Typ::Top }
-  }};
 }
 
 pub fn is_final(exp:&obj::PExp) -> bool {
