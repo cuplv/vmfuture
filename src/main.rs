@@ -1,6 +1,6 @@
 //#[macro_use]
 extern crate adapton;
-use adapton::collections::{List,ListIntro};
+use adapton::collections::{List,ListIntro,ListElim};
 //use adapton::engine::*;
 //use adapton::macros::*;
 //use std::rc::Rc;  
@@ -25,7 +25,7 @@ mod refl {
 
 mod obj {
   //use std::collections::HashMap;
-  use adapton::collections::{List};
+  use adapton::collections::{List,ListElim};
   
   pub type Loc = usize;
   pub type Var = String;
@@ -39,16 +39,24 @@ mod obj {
     }
   }
 
+  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub struct State {
-    store:List<(Loc, Val)>,
-    env:  List<(Var, Val)>,
-    eval: Eval,
-    exp:  PExp,
+    store: List<(Loc, Val)>,
+    env:   List<(Var, Val)>,
+    stack: List<(Env, Eval)>,
+    exp:   PExp,
   }
 
   pub fn small_step(st:State) -> PExp {
     if is_final(&st.exp) {
-      panic!("")
+      if <List<_> as ListElim<_>>::is_empty(&st.stack) {
+        panic!("state is halted: {:?}", st)
+      }
+      else {
+        // TODO: Pop the top eval frame.
+        // Pattern match the top eval frame against the current exp; update saved env.
+        panic!("")
+      }
     }
     else {
       match st.exp {
@@ -68,9 +76,8 @@ mod obj {
   
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum Eval {
-    App(Box<Eval>, Val),
-    Let(Box<Eval>, Exp),
-    Hole,
+    App(Val),
+    Let(Var, Exp),
   }
   
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
