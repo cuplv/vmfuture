@@ -38,6 +38,7 @@ mod obj {
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub struct State {
     pub store: List<(Loc, Val)>,
+    pub nloc:  usize,
     pub env:   List<(Var, Val)>,
     /// TODO: Do we need an environment for App frames? It seems like we do not.
     pub stack: List<Frame>,
@@ -104,17 +105,41 @@ mod obj {
 }
 
 #[macro_export]
-macro_rules! oproj {
-  ( $val1:expr , $val2:expr ) => {{
-    let pexp = obj::PExp::Proj( $val1, $val2 );
-    obj::Exp{pexp:Box::new(pexp), ann:refl::Typ::Top}
-  }}
+macro_rules! ovar {
+  ( $var:ident ) => {{
+    obj::Val{pval:Box::new(obj::PVal::Var(stringify!($var).to_string())),
+             ann:refl::Typ::Top}
+  }};
 }
 
 #[macro_export]
 macro_rules! ostr {
   ( $str:expr ) => {{
     let pval = obj::PVal::Str( $str.to_string() );
+    obj::Val{pval:Box::new(pval), ann:refl::Typ::Top}
+  }}
+}
+
+#[macro_export]
+macro_rules! oloc {
+  ( $loc:expr ) => {{
+    let pval = obj::PVal::Loc( $loc );
+    obj::Val{pval:Box::new(pval), ann:refl::Typ::Top}
+  }}
+}
+
+#[macro_export]
+macro_rules! ounit {
+  ( ) => {{
+    let pval = obj::PVal::Dict( List::Nil );
+    obj::Val{pval:Box::new(pval), ann:refl::Typ::Top}
+  }}
+}
+
+#[macro_export]
+macro_rules! odict {
+  ( $dict:expr ) => {{
+    let pval = obj::PVal::Dict( $dict );
     obj::Val{pval:Box::new(pval), ann:refl::Typ::Top}
   }}
 }
@@ -139,6 +164,20 @@ macro_rules! olam {
 }
 
 #[macro_export]
+macro_rules! oapp {
+  ( $exp:expr ) => {{ $exp }}
+  ;
+  ( $exp:expr , $val:expr ) => {{
+    let pexp = obj::PExp::App($exp, $val);
+    obj::Exp{pexp:Box::new(pexp), ann:refl::Typ::Top}
+  }}
+  ;
+  ( $exp:expr , $val1:expr , $( $val2:expr ),+ ) => {{
+    oapp!( oapp!($exp, $val1), $( $val2 ),+ )
+  }}  
+}
+
+#[macro_export]
 macro_rules! olet {
   { $var:ident = $rhs:expr ; $body:expr } => {{
     let pexp = obj::PExp::Let(stringify!($var).to_string(), $rhs, $body);
@@ -150,11 +189,11 @@ macro_rules! olet {
 }
 
 #[macro_export]
-macro_rules! ovar {
-  ( $var:ident ) => {{
-    obj::Val{pval:Box::new(obj::PVal::Var(stringify!($var).to_string())),
-             ann:refl::Typ::Top}
-  }};
+macro_rules! oproj {
+  ( $val1:expr , $val2:expr ) => {{
+    let pexp = obj::PExp::Proj( $val1, $val2 );
+    obj::Exp{pexp:Box::new(pexp), ann:refl::Typ::Top}
+  }}
 }
 
 #[macro_export]
@@ -167,17 +206,35 @@ macro_rules! ovarf {
 }
 
 #[macro_export]
-macro_rules! oapp {
-  ( $exp:expr ) => {{ $exp }}
-  ;
-  ( $exp:expr , $val:expr ) => {{
-    let pexp = obj::PExp::App($exp, $val);
+macro_rules! oref {
+  ( $val:expr ) => {{
+    let pexp = obj::PExp::Ref( $val );
     obj::Exp{pexp:Box::new(pexp), ann:refl::Typ::Top}
   }}
-  ;
-  ( $exp:expr , $val1:expr , $( $val2:expr ),+ ) => {{
-    oapp!( oapp!($exp, $val1), $( $val2 ),+ )
-  }}  
+}
+
+#[macro_export]
+macro_rules! oget {
+  ( $val:expr ) => {{
+    let pexp = obj::PExp::Get( $val );
+    obj::Exp{pexp:Box::new(pexp), ann:refl::Typ::Top}
+  }}
+}
+
+#[macro_export]
+macro_rules! oset {
+  ( $val1:expr , $val2:expr ) => {{
+    let pexp = obj::PExp::Set( $val1, $val2 );
+    obj::Exp{pexp:Box::new(pexp), ann:refl::Typ::Top}
+  }}
+}
+
+#[macro_export]
+macro_rules! oret {
+  ( $val:expr ) => {{
+    let pexp = obj::PExp::Ret( $val );
+    obj::Exp{pexp:Box::new(pexp), ann:refl::Typ::Top}
+  }}
 }
 
 pub fn is_final(exp:&obj::PExp) -> bool {
@@ -192,11 +249,15 @@ pub fn close_pval(env:&obj::Env, v:obj::PVal) -> obj::PVal {
   use obj::PVal::*;
   match v {
     Thunk(env2,e) => Thunk(env2,e),
+    Dict(List::Nil) => Dict(List::Nil),
     Dict(dict)    => panic!("TODO: fold over dictionary"),
     Num(n)        => Num(n),
     Str(s)        => Str(s),
     Loc(l)        => Loc(l),
-    Var(x)        => panic!("TODO Lookup variable {:?}", x),
+    Var(x)        => match <List<_> as MapElim<_,_>>::find(env, &x) {
+      Some(v)     => *v.pval,
+      None        => panic!("stuck: close_pval: Unbound variable: `{}'", x)
+    }
   }
 }
 
@@ -206,23 +267,28 @@ pub fn close_val(env:&obj::Env, v:obj::Val) -> obj::Val {
 
 pub fn initial_state(e:obj::PExp) -> obj::State {
   obj::State{store:<List<_> as ListIntro<_>>::nil(),
+             nloc: 0,
              stack:<List<_> as ListIntro<_>>::nil(),
              env:  <List<_> as ListIntro<_>>::nil(),
              pexp: e}
 }
 
-pub fn small_step(st:obj::State) -> Option<obj::State> {
+pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
   use obj::*;
   use obj::PExp::*;
   use adapton::collections::*;
 
   if is_final(&st.pexp) {
-    if list_is_empty(&st.stack) { None }
+    if list_is_empty(&st.stack) { Err(st) }
     else {
       let (fr, stack) = list_pop(st.stack);
       match (fr, st.pexp) {
-        (Frame::App(v), Lam(x,e)) =>        Some(State{env:list_push(st.env,(x,v)), stack:stack, pexp:*e.pexp, ..st}),
-        (Frame::Let(x,fr_env,e), Ret(v)) => Some(State{env:list_push(fr_env,(x,v)), stack:stack, pexp:*e.pexp, ..st}),
+        (Frame::App(v), Lam(x,e)) => 
+          Ok(State{env:list_push(st.env,(x,v)), stack:stack, pexp:*e.pexp, ..st}),
+        (Frame::Let(x,fr_env,e), Ret(v)) => {
+          let v = close_val(&st.env, v);
+          Ok(State{env:list_push(fr_env,(x,v)), stack:stack, pexp:*e.pexp, ..st})
+        },
         _ => panic!("invalid state: current stack and (final) expression do not match.")
       }}
   }
@@ -243,24 +309,105 @@ pub fn small_step(st:obj::State) -> Option<obj::State> {
           _ => panic!("stuck: forced a value that is not a thunk")
         }
       }      
-      Ref(v) => unimplemented!(),
-      Get(v) => unimplemented!(),
-      
-      Proj(v1,v2) => unimplemented!(),
-      Set(v1,v2) => unimplemented!(),
-      Ext(v1,v2,v3) => unimplemented!(),
-      
+      Ref(v) => {
+        let v = close_val(&st.env,v) ;
+        let store = <List<_> as MapIntro<_,_>>::update(st.store, st.nloc, v);
+        State{nloc:st.nloc+1, store:store, pexp:Ret(oloc!(st.nloc)), ..st}
+      }
+      Set(v1,v2) => {
+        let v1 = close_val(&st.env, v1);
+        let v2 = close_val(&st.env, v2);
+        match *v1.pval {
+          PVal::Loc(loc) => {
+            let store = <List<_> as MapIntro<_,_>>::update(st.store, loc, v2);
+            State{store:store, pexp:Ret(ounit!()), ..st}
+          }
+          _ => panic!("stuck: ref-set on a non-location: {:?}", v1)
+        }        
+      }
+      Get(v) => {
+        let v = close_val(&st.env,v) ;
+        match *v.pval {
+          PVal::Loc(loc) => {          
+            let w = <List<_> as MapElim<_,_>>::find(&st.store, &loc);
+            match w {
+              None => panic!("internal error: ref-get dereferenced non-existent store location"),
+              Some(w) => State{pexp:Ret(w),.. st}
+            }
+          }
+          _ => panic!("stuck: ref-get on a non-location: {:?}", v)
+        }
+      }      
+      Proj(v1,v2) => {
+        let v1 = close_val(&st.env,v1) ;
+        let v2 = close_val(&st.env,v2) ;
+        match *v1.pval {
+          PVal::Dict(dict) => {          
+            let w = <List<_> as MapElim<_,_>>::find(&dict, &v2);
+            match w {
+              None => panic!("stuck: dict-proj failed on projection of given value: {:?}", v2),
+              Some(w) => State{pexp:Ret(w),.. st}
+            }
+          }
+          _ => panic!("stuck: dict-proj on a non-dictionary: {:?}", v1)
+        }
+      }
+      Ext(v1,v2,v3) => {
+        let v1 = close_val(&st.env, v1);
+        let v2 = close_val(&st.env, v2);
+        let v3 = close_val(&st.env, v3);
+        match *v1.pval {
+          PVal::Dict(dict) => {
+            let dict = <List<_> as MapIntro<_,_>>::update(dict, v2, v3);
+            State{pexp:Ret(odict!(dict)), ..st}
+          }
+          _ => panic!("stuck: dict-ext on a non-dictionary: {:?}", v1)
+        }
+      }      
       // These are terminal cases, and thus are excluded in this match:
       Ret(_)   => unreachable!(),
       Lam(_,_) => unreachable!(),
     };
-    Some(st)
+    Ok(st)
   }
 }
 
-fn main() {
-  //use obj::*;
-  
+fn eval (st:obj::State) -> obj::State {
+  let mut st = st;
+  loop {
+    println!("{:?}\n", st);
+    match small_step(st) {
+      Ok(st2)  => st = st2,
+      Err(st2) => { 
+        println!("halted:\n{:?}", st2); 
+        return st2
+      },
+    }
+  }
+}
+
+#[test]
+fn test_store() {  
+  let example : obj::Exp =
+    olet!{ x  = oref!(ostr!("apple")),
+           y1 = oget!(ovar!(x)),
+           z  = oset!(ovar!(x), ostr!("banana")),
+           y2 = oget!(ovar!(x))
+           ;
+           oret!(ovar!(y2))
+    };
+  let st = initial_state(*example.pexp);
+  let st = eval(st);
+  let y2 = <List<_> as MapElim<_,_>>::find(&st.env, &"y2".to_string());
+  assert!( y2 == Some(ostr!("banana")) )  
+}
+
+#[test]
+fn test_listing_1() {
+  listing_1()
+}
+
+fn listing_1() {
   let example : obj::Exp =
     olet!{ authors   = oapp!(ovarf!(openDb), ostr!("authors.csv")),
            authorsUS = oapp!(ovarf!(filterDb), ovar!(authors),
@@ -279,13 +426,11 @@ fn main() {
            ;
            ovarf!(halt)
     };
+  let st = initial_state(*example.pexp);
+  drop(eval(st));
+}
 
-  let mut st = initial_state(*example.pexp);
-  loop {
-    println!("{:?}\n", st);
-    match small_step(st) {
-      None      => break,
-      Some(st2) => st = st2
-    }
-  }
+fn main() {
+  //use obj::*;
+  listing_1()
 }
