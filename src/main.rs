@@ -7,7 +7,7 @@ use adapton::collections::*;
 //use adapton::macros::*;
 //use std::rc::Rc;  
 
-mod refl {
+pub mod refl {
   //use std::collections::HashMap;
   use adapton::collections::{List};
   
@@ -25,7 +25,7 @@ mod refl {
   pub type Ann = Typ;
 }
 
-mod obj {  
+pub mod obj {  
   //use super::*;
   //use std::collections::HashMap;
   use adapton::collections::*;
@@ -85,6 +85,7 @@ mod obj {
   /// Pre-Values
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum PVal {
+    OpenThunk(Exp),
     Thunk(Env,Exp),
     Dict(Dict),
     Num(isize),
@@ -147,7 +148,7 @@ macro_rules! odict {
 #[macro_export]
 macro_rules! othunk {
   [ $body:expr ] => {{
-    let pval = obj::PVal::Thunk( <List<(obj::Var, obj::Val)> as ListIntro<_>>::nil(), $body );
+    let pval = obj::PVal::OpenThunk( $body );
     obj::Val{pval:Box::new(pval), ann:refl::Typ::Top}
   }}
 }
@@ -248,6 +249,7 @@ pub fn is_final(exp:&obj::PExp) -> bool {
 pub fn close_pval(env:&obj::Env, v:obj::PVal) -> obj::PVal {
   use obj::PVal::*;
   match v {
+    OpenThunk(e)  => Thunk(env.clone(), e),
     Thunk(env2,e) => Thunk(env2,e),
     Dict(List::Nil) => Dict(List::Nil),
     Dict(dict)    => panic!("TODO: fold over dictionary"),
