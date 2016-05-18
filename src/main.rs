@@ -29,7 +29,7 @@ pub mod obj {
   //use super::*;
   //use std::collections::HashMap;
   use adapton::collections::*;
-  
+
   pub type Loc = usize;
   pub type Var = String;
 
@@ -57,6 +57,15 @@ pub mod obj {
     /// expression given by this frame.
     Let(Var, Env, Exp), 
   }
+
+  /// Primitives
+  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
+  pub enum Prim {
+    DbOpen,
+    DbFilter,
+    DbJoin,
+    Eq,
+  }
   /// Pre-Expressions
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum PExp {
@@ -75,6 +84,7 @@ pub mod obj {
     Set(Val,Val),
     Ext(Val,Val,Val),
     Let(Var,Exp,Exp),    
+    Prim(Prim),
   }
   /// Expressions: A Pre-Expression, along with an annotation
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
@@ -104,6 +114,7 @@ pub mod obj {
   //pub type Dict = HashMap<Val,Val>;
   //pub type Env  = HashMap<Var,Val>;
 }
+
 
 #[macro_export]
 macro_rules! ovar {
@@ -198,6 +209,16 @@ macro_rules! oproj {
 }
 
 #[macro_export]
+macro_rules! oprim {
+  ( $prim:expr ) => {{
+    let pexp = obj::PExp::Prim( $prim );
+    let exp  = obj::Exp{pexp:Box::new(pexp), ann:refl::Typ::Top};
+    let pval = obj::PVal::Thunk( adapton::collections::map_empty(), exp );
+    obj::Val{pval:Box::new(pval), ann:refl::Typ::Top}
+  }}
+}
+
+#[macro_export]
 macro_rules! ovarf {
   ( $var:ident ) => {{
     let v = ovar!($var);
@@ -268,16 +289,23 @@ pub fn close_val(env:&obj::Env, v:obj::Val) -> obj::Val {
 }
 
 pub fn initial_state(e:obj::PExp) -> obj::State {
-  obj::State{store:<List<_> as ListIntro<_>>::nil(),
+  use adapton::collections::*;
+
+  let env : obj::Env = map_empty();
+  let env = map_update(env, "openDb".to_string(),   oprim!(obj::Prim::DbOpen));
+  let env = map_update(env, "filterDb".to_string(), oprim!(obj::Prim::DbFilter));
+  let env = map_update(env, "joinDb".to_string(),   oprim!(obj::Prim::DbJoin));
+
+  obj::State{store:map_empty(),
              nloc: 0,
-             stack:<List<_> as ListIntro<_>>::nil(),
-             env:  <List<_> as ListIntro<_>>::nil(),
+             stack:List::Nil,
+             env:  env,
              pexp: e}
 }
 
 pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
   use obj::*;
-  use obj::PExp::*;
+  //use obj::PExp::*;
   use adapton::collections::*;
 
   if is_final(&st.pexp) {
@@ -285,9 +313,9 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
     else {
       let (fr, stack) = list_pop(st.stack);
       match (fr, st.pexp) {
-        (Frame::App(v), Lam(x,e)) => 
+        (Frame::App(v), PExp::Lam(x,e)) => 
           Ok(State{env:list_push(st.env,(x,v)), stack:stack, pexp:*e.pexp, ..st}),
-        (Frame::Let(x,fr_env,e), Ret(v)) => {
+        (Frame::Let(x,fr_env,e), PExp::Ret(v)) => {
           let v = close_val(&st.env, v);
           Ok(State{env:list_push(fr_env,(x,v)), stack:stack, pexp:*e.pexp, ..st})
         },
@@ -296,51 +324,110 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
   }
   else {
     let st = match st.pexp {
-      Ann(e,_) => { State{pexp:*e, ..st} }
-      App(e, v) => {
+      PExp::Prim(prim) => {
+        match prim {
+          Prim::DbOpen => {
+            let (arg, stack) = {
+              let (fr, stack) = list_pop(st.stack);              
+              match fr {
+                Frame::App(v) => (v, stack),
+                _ => panic!("stuck: DbOpen expected an argument")
+              }}; 
+            // TODO: Create/Open a database here!
+            State{stack:stack, pexp:PExp::Ret(ounit!()), ..st}
+          }
+          Prim::DbFilter => {
+            let (arg1, stack) = {
+              let (fr, stack) = list_pop(st.stack);              
+              match fr {
+                Frame::App(v) => (v, stack),
+                _ => panic!("stuck: DbOpen expected a first argument")
+              }}; 
+            let (arg2, stack) = {
+              let (fr, stack) = list_pop(stack);              
+              match fr {
+                Frame::App(v) => (v, stack),
+                _ => panic!("stuck: DbOpen expected a second argument")
+              }}; 
+            // TODO: Create/Open a database here!
+            State{stack:stack, pexp:PExp::Ret(ounit!()), ..st}
+          }
+          Prim::DbJoin => {
+            let (arg, stack) = {
+              let (fr, stack) = list_pop(st.stack);              
+              match fr {
+                Frame::App(v) => (v, stack),
+                _ => panic!("stuck: DbOpen expected a first argument")
+              }}; 
+            let (arg, stack) = {
+              let (fr, stack) = list_pop(stack);              
+              match fr {
+                Frame::App(v) => (v, stack),
+                _ => panic!("stuck: DbOpen expected a second argument")
+              }}; 
+            let (arg, stack) = {
+              let (fr, stack) = list_pop(stack);              
+              match fr {
+                Frame::App(v) => (v, stack),
+                _ => panic!("stuck: DbOpen expected a third argument")
+              }}; 
+            let (arg, stack) = {
+              let (fr, stack) = list_pop(stack);              
+              match fr {
+                Frame::App(v) => (v, stack),
+                _ => panic!("stuck: DbOpen expected a forth argument")
+              }}; 
+            // TODO: Create/Open a database here!
+            State{stack:stack, pexp:PExp::Ret(ounit!()), ..st}
+          }
+          _ => unimplemented!()
+        }
+      }
+      PExp::Ann(e,_) => { State{pexp:*e, ..st} }
+      PExp::App(e, v) => {
         let stack = list_push(st.stack, Frame::App(close_val(&st.env, v)));
         State{stack:stack, pexp:*e.pexp, ..st}
       }
-      Let(x,e1,e2) => {
+      PExp::Let(x,e1,e2) => {
         let stack = list_push(st.stack, Frame::Let(x,st.env.clone(),e2));
         State{stack:stack, pexp:*e1.pexp, ..st}
       }
-      Force(v) => {
+      PExp::Force(v) => {
         match *close_val(&st.env,v).pval {
           PVal::Thunk(env,e) => State{env:env, pexp:*e.pexp, ..st},
           _ => panic!("stuck: forced a value that is not a thunk")
         }
       }      
-      Ref(v) => {
+      PExp::Ref(v) => {
         let v = close_val(&st.env,v) ;
         let store = <List<_> as MapIntro<_,_>>::update(st.store, st.nloc, v);
-        State{nloc:st.nloc+1, store:store, pexp:Ret(oloc!(st.nloc)), ..st}
+        State{nloc:st.nloc+1, store:store, pexp:PExp::Ret(oloc!(st.nloc)), ..st}
       }
-      Set(v1,v2) => {
+      PExp::Set(v1,v2) => {
         let v1 = close_val(&st.env, v1);
         let v2 = close_val(&st.env, v2);
         match *v1.pval {
           PVal::Loc(loc) => {
             let store = <List<_> as MapIntro<_,_>>::update(st.store, loc, v2);
-            State{store:store, pexp:Ret(ounit!()), ..st}
+            State{store:store, pexp:PExp::Ret(ounit!()), ..st}
           }
           _ => panic!("stuck: ref-set on a non-location: {:?}", v1)
         }        
       }
-      Get(v) => {
+      PExp::Get(v) => {
         let v = close_val(&st.env,v) ;
         match *v.pval {
           PVal::Loc(loc) => {          
             let w = <List<_> as MapElim<_,_>>::find(&st.store, &loc);
             match w {
               None => panic!("internal error: ref-get dereferenced non-existent store location"),
-              Some(w) => State{pexp:Ret(w),.. st}
+              Some(w) => State{pexp:PExp::Ret(w),.. st}
             }
           }
           _ => panic!("stuck: ref-get on a non-location: {:?}", v)
         }
       }      
-      Proj(v1,v2) => {
+      PExp::Proj(v1,v2) => {
         let v1 = close_val(&st.env,v1) ;
         let v2 = close_val(&st.env,v2) ;
         match *v1.pval {
@@ -348,27 +435,27 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
             let w = <List<_> as MapElim<_,_>>::find(&dict, &v2);
             match w {
               None => panic!("stuck: dict-proj failed on projection of given value: {:?}", v2),
-              Some(w) => State{pexp:Ret(w),.. st}
+              Some(w) => State{pexp:PExp::Ret(w),.. st}
             }
           }
           _ => panic!("stuck: dict-proj on a non-dictionary: {:?}", v1)
         }
       }
-      Ext(v1,v2,v3) => {
+      PExp::Ext(v1,v2,v3) => {
         let v1 = close_val(&st.env, v1);
         let v2 = close_val(&st.env, v2);
         let v3 = close_val(&st.env, v3);
         match *v1.pval {
           PVal::Dict(dict) => {
             let dict = <List<_> as MapIntro<_,_>>::update(dict, v2, v3);
-            State{pexp:Ret(odict!(dict)), ..st}
+            State{pexp:PExp::Ret(odict!(dict)), ..st}
           }
           _ => panic!("stuck: dict-ext on a non-dictionary: {:?}", v1)
         }
       }      
       // These are terminal cases, and thus are excluded in this match:
-      Ret(_)   => unreachable!(),
-      Lam(_,_) => unreachable!(),
+      PExp::Ret(_)   => unreachable!(),
+      PExp::Lam(_,_) => unreachable!(),
     };
     Ok(st)
   }
