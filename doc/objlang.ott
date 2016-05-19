@@ -1,0 +1,150 @@
+Value Types
+A, B ::=
+ | TopV
+ | Num
+ | Str
+ | Dict Delta
+ | Ref A
+ | U C
+
+Dictionary types: Internal structure
+Delta ::=
+ | emp
+ | Delta , v |-> A
+
+Computation Types
+C, D ::= 
+ | TopC
+ | A -> C
+ | F A
+
+------------------------------------
+
+Annotations for expressions
+ae ::= C
+
+Anotations for values
+av ::= A
+
+Expressions: Annotated pre-expressions
+e ::= pe : ae
+
+Pre-Expressions
+pe ::= 
+ | e v
+ | lam x . e
+ | let x = e1 in e2
+ | ret v
+ | force v
+ | ref v
+ | set v1 v2
+ | get v
+ | ext v1 v2 v3   --introduce 
+ | proj v1 v2
+
+Values: Annotated Pre-Values
+v ::= pv : av
+
+Pre-Values
+pv ::=
+ | othunk e
+ | thunk env e
+ | dict delta
+ | num n
+ | str s
+ | loc l
+ | x
+
+Dictionary values: Internal structure
+delta ::=
+ | emp
+ | delta , v1 |-> v2
+
+---------------------------------------
+
+Ctx ::= emp | Ctx , x : A
+
+
+Computation Typing:
+
+Ctx |- v : A
+Ctx |- e : A -> C
+--------------------- :: app
+Ctx |- e v : C
+
+Ctx, x:A |- e : C
+-------------------------- :: lam
+Ctx |- lam x . e : A -> C
+
+Ctx |- e : F A
+Ctx , x : A |- e : C
+--------------------------- :: let
+Ctx |- let x = e1 in e2 : C
+
+Ctx |- v : A
+-------------------- :: ret
+Ctx |- ret v : F A
+
+Ctx |- v : U C
+-------------------- :: force
+Ctx |- force v : C
+
+Ctx |- v : A
+----------------------- :: ref
+Ctx |- ref v : F (Ref A)
+
+Ctx |- v : Ref A
+----------------------- :: get
+Ctx |- get v : F A
+
+Ctx |- v1 : Ref A
+Ctx |- v2 : A
+----------------------- :: set
+Ctx |- set v1 v2 : F 1
+
+Ctx |- v1 : Dict Delta
+Ctx |- v2 : A
+Ctx |- v3 : B
+------------------------------------------------- :: ext
+Ctx |- ext v1 v2 v3 : F (Dict (Delta, v2 |-> B))
+
+Ctx |- v2 : A
+Ctx |- v1 : Dict (Delta1, v2 |-> B, Delta2)
+------------------------------------------------- :: proj1 **
+Ctx |- proj v1 v2 : F B
+
+Ctx |- v2 : A
+Ctx |- v1 : Dict Delta
+------------------------------------------------- :: proj2 **
+Ctx |- proj v1 v2 : F TopV
+
+
+--------------------------------------------
+
+Value Typing:
+
+x:A in Ctx
+------------- :: var
+Ctx |- x : A
+
+--------------------------- :: dict-emp
+Ctx |- dict emp : Dict emp
+
+Ctx |- dict (delta) : Dict (Delta)
+Ctx |- v1 : A
+Ctx |- v2 : B
+--------------------------------------------------------- :: dict-cons
+Ctx |- dict (delta, v1 |-> v2) : Dict (Delta, v1 : B)
+
+
+Ctx |- e : C
+------------------------ :: othunk
+Ctx |- thunk e : U C
+
+env ~~> Ctx'
+Ctx' |- e : C
+------------------------ :: thunk
+Ctx |- thunk env e : U C
+
+
+-----------------------------------------------------
