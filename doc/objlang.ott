@@ -1,71 +1,107 @@
-Value Types
-A, B ::=
- | TopV
- | Num
- | Str
- | Dict Delta
- | Ref A
- | U C
+embed {{ tex-preamble }}
 
-Dictionary types: Internal structure
-Delta ::=
- | emp
- | Delta , v |-> A
+metavar  var, x {{ tex x }}, y {{ tex y }}, z {{ tex z }}, f {{ tex f }}, g {{tex g }} ::= {{ com variables }}
+metavar  numeral ::= {{ com literal number }} {{ lex numeral }}
+indexvar i {{ tex i }}, j {{ tex j }} ::= {{ lex numeral }}
 
-Computation Types
-C, D ::= 
- | TopC
- | A -> C
- | F A
+grammar
+A, B :: 'A_' ::= {{ com Value Types }}
+ | TopV   :: :: topv
+ | Num    :: :: num
+ | Str    :: :: str
+ | Dict Delta :: :: dict 
+ | Ref A :: :: ref
+ | U C   :: :: u
+ | ( A ) :: S :: paren
+ | 1     :: S :: unit
+ | 2     :: S :: bool
+ | Db A  ::   :: db
 
-------------------------------------
+Delta :: 'Delta_' ::= {{ com Dictionary types: Internal structure}}
+ | emp             :: :: emp
+ | Delta , v => A  :: :: cons
+ | ( Delta )       :: S :: paren
+ | Delta1 , Delta2 :: :: append
 
-Annotations for expressions
-ae ::= C
+C, D :: 'C_' ::= {{ com Computation Types }}
+ | TopC   :: :: topc
+ | A -> C :: :: arr
+ | F A    :: :: f
+ | ( C ) :: S :: paren
 
-Anotations for values
-av ::= A
+ae :: 'ae_' ::= {{ com Annotations for expressions }}
+ | C :: :: c
 
-Expressions: Annotated pre-expressions
-e ::= pe : ae
+av :: 'av_' ::= {{ com Anotations for values }}
+ | A :: :: a
 
-Pre-Expressions
-pe ::= 
- | e v
- | lam x . e
- | let x = e1 in e2
- | ret v
- | force v
- | ref v
- | set v1 v2
- | get v
- | ext v1 v2 v3   --introduce 
- | proj v1 v2
+e :: 'e_' ::= {{ com Expressions: Annotated pre-expressions }}
+ | ( pe : ae ) :: :: e
 
-Values: Annotated Pre-Values
-v ::= pv : av
+pe :: 'pe_' ::= {{ com Pre-Expressions }}
+ | e v               :: :: app
+ | lam x . e         :: :: lam
+ | let x = e1 in e2  :: :: let
+ | ret v             :: :: ret
+ | force v           :: :: force
+ | ref v             :: :: ref
+ | set v1 v2         :: :: set
+ | get v             :: :: get
+ | ext v1 v2 v3      :: :: ext
+ | proj v1 v2        :: :: proj
 
-Pre-Values
-pv ::=
- | othunk e
- | thunk env e
- | dict delta
- | num n
- | str s
- | loc l
- | x
+ | openDb v :: :: openDb
+ | filterDb v1 v2 :: :: filterDb
+ | joinDb v1 v2 v3 v4 :: :: joinDb
 
-Dictionary values: Internal structure
-delta ::=
- | emp
- | delta , v1 |-> v2
+env :: 'env_' ::=
+ | emp          :: :: emp
+ | env , x => v :: :: cons
 
----------------------------------------
+stack :: 'stack_' ::=
+ | halt                    :: :: halt
+ | stack :::: v            :: :: app
+ | stack :::: (env, x.e2)  :: :: let
 
-Ctx ::= emp | Ctx , x : A
+v :: 'v_' ::= {{ com Values: Annotated Pre-Values }}
+ | ( pv : av )  :: :: v
 
+pv :: 'pv_' ::=  {{ com Pre-Values }}
+ | othunk e      :: :: othunk
+ | thunk env e   :: :: thunk
+ | dict delta    :: :: dict
+ | num n         :: :: num
+ | str s         :: :: str
+ | loc l         :: :: loc
+ | x             :: :: x
 
-Computation Typing:
+delta :: 'delta_' ::= {{ com Dictionary values: Internal structure }}
+ | emp               :: :: emp
+ | delta , v1 => v2  :: :: cons
+ | ( delta )         :: :: paren
+
+Ctx :: 'Ctx_' ::= 
+ | emp             :: :: emp
+ | Ctx , x : A     :: :: cons
+
+defns
+Jtyp :: '' ::=
+
+defn
+Ctx |- e : C
+:: :: type :: ''
+{{ com Expression Typing }}
+by
+
+Ctx |- pe : C
+----------------------- :: tye
+Ctx |- ( pe : ae ) : C
+
+defn
+Ctx |- pe : C
+:: :: typc :: 'tyc_'
+{{ com Computation Typing }}
+by
 
 Ctx |- v : A
 Ctx |- e : A -> C
@@ -106,40 +142,75 @@ Ctx |- v1 : Dict Delta
 Ctx |- v2 : A
 Ctx |- v3 : B
 ------------------------------------------------- :: ext
-Ctx |- ext v1 v2 v3 : F (Dict (Delta, v2 |-> B))
+Ctx |- ext v1 v2 v3 : F (Dict (Delta, v2 => B))
 
-Ctx |- v2 : A
-Ctx |- v1 : Dict (Delta1, v2 |-> B, Delta2)
-------------------------------------------------- :: proj1 **
-Ctx |- proj v1 v2 : F B
-
-Ctx |- v2 : A
 Ctx |- v1 : Dict Delta
-------------------------------------------------- :: proj2 **
+Ctx |- v2 : A
+------------------------------------------------- :: projTop
 Ctx |- proj v1 v2 : F TopV
 
+Ctx |- v1 : Dict (Delta, v2 => B)
+emp |- v2 : A
+------------------------------------------------- :: proj
+Ctx |- proj v1 v2 : F B
 
---------------------------------------------
 
-Value Typing:
+Ctx |- v : Str
+-------------------------- :: openDbTop
+Ctx |- openDb v : F TopV
 
-x:A in Ctx
-------------- :: var
-Ctx |- x : A
+Ctx |- v1 : Db A
+Ctx |- v2 : U( A -> F 2)
+--------------------------------- :: filterDb
+Ctx |- filterDb v1 v2 : F (Db A)
 
---------------------------- :: dict-emp
+Ctx |- v1 : Db (Dict (Delta1))
+Ctx |- v2 : A1
+Ctx |- v3 : Db (Dict (Delta2))
+Ctx |- v4 : A2
+------------------------------------------------------------------------------ :: joinDbTop
+Ctx |- joinDb v1 v2 v3 v4 : F (Db TopV)
+
+Ctx |- v1 : Db (Dict (Delta1, v2 => B))
+emp |- v2 : A1
+Ctx |- v3 : Db (Dict (Delta2, v4 => B))
+emp |- v4 : A2
+------------------------------------------------------------------------------ :: joinDb
+Ctx |- joinDb v1 v2 v3 v4 : F (Db (Dict (Delta1, Delta2, v2 => B, v4 => B)))
+
+
+defn
+Ctx |- v : A
+:: :: tyv :: ''
+{{ com Value Typing }}
+by
+
+Ctx |- pv : A
+-------------------------- :: tyv
+Ctx |- ( pv : av ) : A
+
+defn
+Ctx |- pv : A
+:: :: typv :: 'typv_'
+{{ com Value Typing }}
+by
+
+---------------------- :: var
+Ctx, x : A |- x : A
+
+--------------------------- :: dictEmp
 Ctx |- dict emp : Dict emp
 
 Ctx |- dict (delta) : Dict (Delta)
 Ctx |- v1 : A
 Ctx |- v2 : B
---------------------------------------------------------- :: dict-cons
-Ctx |- dict (delta, v1 |-> v2) : Dict (Delta, v1 : B)
+--------------------------------------------------------- :: dictCons
+Ctx |- dict (delta, v1 => v2) : Dict (Delta, v1 => B)
 
 
 Ctx |- e : C
 ------------------------ :: othunk
-Ctx |- thunk e : U C
+Ctx |- othunk e : U C
 
 env ~~> Ctx'
 Ctx' |- e : C
@@ -147,4 +218,16 @@ Ctx' |- e : C
 Ctx |- thunk env e : U C
 
 
------------------------------------------------------
+defn
+env ~~> Ctx
+:: :: envt :: 'envt_'
+{{ com Environment Typing }}
+by
+
+----------- :: emp
+emp ~~> emp
+
+env ~~> Ctx
+emp |- v : A
+--------------------------- :: cons
+emp, x => v ~~> Ctx, x:A
