@@ -17,7 +17,7 @@ A, B :: 'A_' ::= {{ com Value Types }}
  | 2     :: S :: bool
  | Db A  ::   :: db
 
-Delta :: 'Delta_' ::= {{ com Dictionary types: Internal structure}}
+Delta {{ tex \Delta }} :: 'Delta_' ::= {{ com Dictionary types: Internal structure}}
  | emp             :: :: emp
  | Delta , v => A  :: :: cons
  | ( Delta )       :: S :: paren
@@ -29,18 +29,18 @@ C, D :: 'C_' ::= {{ com Computation Types }}
  | F A    :: :: f
  | ( C ) :: S :: paren
 
-ae :: 'ae_' ::= {{ com Annotations for expressions }}
+ae {{ tex a_\textsf{e} }} :: 'ae_' ::= {{ com Annotations for expressions }}
  | C :: :: c
 
-av :: 'av_' ::= {{ com Anotations for values }}
+av {{ tex a_\textsf{v} }} :: 'av_' ::= {{ com Anotations for values }}
  | A :: :: a
 
 e :: 'e_' ::= {{ com Expressions: Annotated pre-expressions }}
  | ( pe : ae ) :: :: e
 
-pe :: 'pe_' ::= {{ com Pre-Expressions }}
+pe {{ tex \dot{e} }} :: 'pe_' ::= {{ com Pre-Expressions }}
  | e v               :: :: app
- | lam x . e         :: :: lam
+ | lam x . e         :: :: lam {{ tex \lambda [[x]]. [[e]] }}
  | let x = e1 in e2  :: :: let
  | ret v             :: :: ret
  | force v           :: :: force
@@ -54,19 +54,19 @@ pe :: 'pe_' ::= {{ com Pre-Expressions }}
  | filterDb v1 v2 :: :: filterDb
  | joinDb v1 v2 v3 v4 :: :: joinDb
 
-env :: 'env_' ::=
+env {{ tex \rho }} :: 'env_' ::=
  | emp          :: :: emp
  | env , x => v :: :: cons
 
-stack :: 'stack_' ::=
- | halt                    :: :: halt
- | stack :::: v            :: :: app
- | stack :::: (env, x.e2)  :: :: let
+stack {{ tex \kappa }} :: 'stack_' ::=
+ | halt                         :: :: halt
+ | stack :::: v                 :: :: app
+ | stack :::: ( env , x . e2 )  :: :: let
 
 v :: 'v_' ::= {{ com Values: Annotated Pre-Values }}
  | ( pv : av )  :: :: v
 
-pv :: 'pv_' ::=  {{ com Pre-Values }}
+pv {{ tex \dot{v} }} :: 'pv_' ::=  {{ com Pre-Values }}
  | othunk e      :: :: othunk
  | thunk env e   :: :: thunk
  | dict delta    :: :: dict
@@ -75,12 +75,12 @@ pv :: 'pv_' ::=  {{ com Pre-Values }}
  | loc l         :: :: loc
  | x             :: :: x
 
-delta :: 'delta_' ::= {{ com Dictionary values: Internal structure }}
+delta {{ tex \delta }} :: 'delta_' ::= {{ com Dictionary values: Internal structure }}
  | emp               :: :: emp
  | delta , v1 => v2  :: :: cons
  | ( delta )         :: :: paren
 
-Ctx :: 'Ctx_' ::= 
+Ctx {{ tex \Gamma }} :: 'Ctx_' ::= 
  | emp             :: :: emp
  | Ctx , x : A     :: :: cons
 
@@ -231,3 +231,80 @@ env ~~> Ctx
 emp |- v : A
 --------------------------- :: cons
 emp, x => v ~~> Ctx, x:A
+
+
+grammar
+  terminals :: 'terminals_' ::=
+    | =>       :: :: Rightarrow {{ tex \Rightarrow }}
+    | ::::     :: :: dubcolons {{ tex :: }}
+    | Lam      :: :: Lambda   {{ tex \Lambda }}
+    | forall   :: :: forall {{ tex \forall }}
+    | .>       :: :: ltriangle {{ tex \rhd }}
+    | (|       :: :: lensleft  {{ tex (\!| }}
+    | |)       :: :: lensright {{ tex |\!) }}
+    | mrk      :: :: mrk      {{ tex {\bullet} }}
+    | o        :: :: comp     {{ tex {\circ} }}
+    | oo       :: :: compB    {{ tex \circ }}
+    | <>       :: :: ne       {{ tex \ne }}
+    | ~>       :: :: tildearr {{ tex \leadsto }}
+    | ~~>      :: :: tildearr2 {{ tex \leadsto }}
+    | ^^       :: :: bigsrch  {{ tex \bigtriangleup }}
+    | VV       :: :: bigpatch {{ tex \bigtriangledown }}
+%    | VV       :: :: bigpatch {{ tex \unlhd }}
+    | ``       :: :: bigprop  {{ tex \curvearrowright }}
+    | ``alg    :: :: propalg  {{ tex \curvearrowright_{\textsf{alg} } }}
+    | ``spec   :: :: propspec  {{ tex \curvearrowright_{\textsf{prop} } }}
+%    | ``wlk    :: :: wlk      {{ tex \curvearrowright_{\textsf{wlk} } }}
+%    | ``cost   :: :: cost     {{ tex {\twoheadrightarrow}_{\Delta} }}
+%    | ``costs  :: :: coststar {{ tex {\curvearrowright}_{\Delta} }}
+    | !!       :: :: bigstep  {{ tex \Downarrow }}
+    | !!!      :: :: Bigstep  {{ tex \downarrow }}
+    | ~        :: :: equiv    {{ tex \approx }}
+    | Box      :: :: Box      {{ tex \square }}
+    | >>=      :: :: bind     {{ tex \mathrel{\texttt{>\!>=} } }}
+    | halt     :: :: halt     {{ tex \textsf{halt} }}
+    | prop     :: :: prop     {{ tex \textsf{prop} }}
+    | rewind   :: :: rewind   {{ tex \circlearrowleft }}
+    | \        :: :: lambda   {{ tex \lambda }}
+    | alpha    :: :: alpha    {{ tex \alpha }}
+    | beta     :: :: beta     {{ tex \beta }}
+    | bot      :: :: bot      {{ tex \bot }}
+    | top      :: :: top      {{ tex \top }}
+    | ->       :: :: rightarr {{ tex \rightarrow }}
+    | syn       :: :: syn {{ tex \Rightarrow }}
+    | chk       :: :: chk {{ tex \Leftarrow }}
+    | chkv       :: :: chkv {{ tex \mathrel{ {\Leftarrow}_{\mathsf{V} } } }}
+    | chke       :: :: chke {{ tex \mathrel{ {\Leftarrow}_{\mathsf{E} } } }}
+    | -o       :: :: lolli    {{ tex \multimap }}
+    | <-       :: :: leftarr  {{ tex \leftarrow }}
+%    | |->      :: :: mapsto   {{ tex {\mapsto} }}
+    | |->      :: :: mapsto   {{ tex {\mapsto} }}
+%    | -->      :: :: stepsto  {{ tex \alignrel{\longrightarrow} }}
+    | /->      :: :: leadsto  {{ tex \leadsto }}
+    | \->      :: :: pointsto {{ tex \hookrightarrow }}
+    | <<       :: :: lbracket {{ tex \left<\right. }}
+    | >>       :: :: rbracket {{ tex \left.\right> }}
+    | *        :: :: dot      {{ tex \cdot }}
+    | __       :: :: hole     {{ tex [] }}
+    | /\       :: :: and      {{ tex \wedge }}
+    | \/       :: :: or       {{ tex \vee }}
+    | subseteq :: :: subseteq {{ tex \subseteq }}
+    | <=       :: :: le       {{ tex \le }}
+    | -|       :: :: dashv    {{ tex \dashv }}
+    | |-       :: :: vdash    {{ tex \vdash }}
+    | ||-       :: :: vvdash    {{ tex \Vdash }}
+    | |/-      :: :: nvdash   {{ tex \not\vdash }}
+    | |=       :: :: vDash    {{ tex \vDash }}
+%    | D      :: :: deriv  {{ tex \D }}
+    | Delta      :: :: delta  {{ tex \Delta }}
+%    | ==>      :: :: impty    {{ tex \impty }}
+%    | &&       :: :: withty   {{ tex \withty }}
+    | TopC    :: :: topc    {{ tex \top_\textsf{C} }}
+    | TopV    :: :: topv    {{ tex \top_\textsf{V} }}
+    | union    :: :: union    {{ tex \cup }}
+    | mem      :: :: mem      {{ tex \in }}
+    | notin    :: :: notin    {{ tex \notin }}
+    | @        :: :: append   {{ tex {\mathrel{@} } }}
+    | emp      :: :: emp      {{ tex \varepsilon }}
+    | ok       :: :: ok       {{ tex {\textsf{ok} } }}
+    | wf       :: :: wf       {{ tex {\textsf{wf} } }}
