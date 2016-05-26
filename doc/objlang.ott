@@ -1,8 +1,9 @@
 embed {{ tex-preamble }}
 
 metavar  var, x {{ tex x }}, y {{ tex y }}, z {{ tex z }}, f {{ tex f }}, g {{tex g }} ::= {{ com variables }}
-metavar  numeral ::= {{ com literal number }} {{ lex numeral }}
+metavar  n, s, numeral ::= {{ com literal number }} {{ lex numeral }}
 indexvar i {{ tex i }}, j {{ tex j }} ::= {{ lex numeral }}
+metavar l {{ tex \ell }} ::= {{ com store locations }}
 
 grammar
 A, B :: 'A_' ::= {{ com Value Types }}
@@ -63,6 +64,13 @@ stack {{ tex \kappa }} :: 'stack_' ::=
  | stack :::: v                 :: :: app
  | stack :::: ( env , x . e2 )  :: :: let
 
+store {{ tex \mu }} :: 'store_' ::=
+ | emp             :: :: emp
+ | store , l => v  :: :: cons
+
+state {{ tex \sigma }} :: '' ::=
+ | < store ; stack ; env ; pe > :: :: state
+
 v :: 'v_' ::= {{ com Values: Annotated Pre-Values }}
  | ( pv : av )  :: :: v
 
@@ -83,6 +91,8 @@ delta {{ tex \delta }} :: 'delta_' ::= {{ com Dictionary values: Internal struct
 Ctx {{ tex \Gamma }} :: 'Ctx_' ::= 
  | emp             :: :: emp
  | Ctx , x : A     :: :: cons
+ | ctxify store    :: :: ctxify {{ tex \left|[[store]]\right| }}
+ | Ctx1 , Ctx2     :: S :: append
 
 defns
 Jtyp :: '' ::=
@@ -198,6 +208,15 @@ by
 ---------------------- :: var
 Ctx, x : A |- x : A
 
+------------------------------------------------- :: loc
+ctxify store, l => (pv: A), Ctx |- loc l : A
+
+------------------------------------------------- :: Str
+Ctx |- str s : Str
+
+------------------------------------------------- :: Num
+Ctx |- num n : Num
+
 --------------------------- :: dictEmp
 Ctx |- dict emp : Dict emp
 
@@ -212,47 +231,58 @@ Ctx |- e : C
 ------------------------ :: othunk
 Ctx |- othunk e : U C
 
-env ~~> Ctx'
+Ctx  |- env ~~> Ctx'
 Ctx' |- e : C
 ------------------------ :: thunk
-Ctx |- thunk env e : U C
+Ctx  |- thunk env e : U C
 
 
 defn
-env ~~> Ctx
+Ctx |- env ~~> Ctx'
 :: :: envt :: 'envt_'
 {{ com Environment Typing }}
 by
 
------------ :: emp
-emp ~~> emp
+------------------ :: emp
+Ctx |- emp ~~> emp
 
-env ~~> Ctx
-emp |- v : A
---------------------------- :: cons
-env, x => v ~~> Ctx, x:A
+Ctx |- env ~~> Ctx'
+Ctx |- v : A
+--------------------------------- :: cons
+Ctx |- env, x => v ~~> Ctx', x:A
 
 defn
-stack <~~ C
+Ctx |- stack <~~ C
 :: :: stackt :: 'stackt_'
-{{ tex [[stack]] \Leftarrow [[C]] }}
+{{ tex [[Ctx]] [[|-]] [[stack]] \Leftarrow [[C]] }}
 {{ com Stack Typing }}
 by
 
------------ :: emp
-halt <~~ C
+----------------- :: emp
+Ctx |- halt <~~ C
 
-stack <~~ C
-env ~~> Ctx
+Ctx |- stack <~~ C
+Ctx |- env ~~> Ctx
 Ctx, x:A |- e : C
---------------------------- :: let
-stack :::: (env, x.e) <~~ F A
+------------------------------------- :: let
+Ctx |- stack :::: (env, x.e) <~~ F A
 
-emp |- v : A
-stack <~~ C
---------------------------- :: app
-stack :::: v <~~ A -> C
+Ctx |- v : A
+Ctx |- stack <~~ C
+----------------------------------- :: app
+Ctx |- stack :::: v <~~ A -> C
 
+
+defn
+state ok
+:: :: state_ok :: ''
+by
+
+ctxify store      |- env ~~> Ctx
+ctxify store, Ctx |- pe : C
+ctxify store      |- stack <~~ C
+----------------------------------- :: 'State_ok'
+<store; stack; env; pe> ok
 
 grammar
   terminals :: 'terminals_' ::=
