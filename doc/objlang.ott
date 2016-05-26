@@ -230,7 +230,28 @@ emp ~~> emp
 env ~~> Ctx
 emp |- v : A
 --------------------------- :: cons
-emp, x => v ~~> Ctx, x:A
+env, x => v ~~> Ctx, x:A
+
+defn
+stack <~~ C
+:: :: stackt :: 'stackt_'
+{{ tex [[stack]] \Leftarrow [[C]] }}
+{{ com Stack Typing }}
+by
+
+----------- :: emp
+halt <~~ C
+
+stack <~~ C
+env ~~> Ctx
+Ctx, x:A |- e : C
+--------------------------- :: let
+stack :::: (env, x.e) <~~ F A
+
+emp |- v : A
+stack <~~ C
+--------------------------- :: app
+stack :::: v <~~ A -> C
 
 
 grammar
