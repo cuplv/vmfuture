@@ -10,7 +10,7 @@ A, B :: 'A_' ::= {{ com Value Types }}
  | TopV   :: :: topv
  | Num    :: :: num
  | Str    :: :: str
- | Dict Delta :: :: dict 
+ | Dict Delta :: :: dict
  | Ref A :: :: ref
  | U C   :: :: u
  | ( A ) :: S :: paren
@@ -30,10 +30,10 @@ C, D :: 'C_' ::= {{ com Computation Types }}
  | F A    :: :: f
  | ( C ) :: S :: paren
 
-ae {{ tex a_\textsf{e} }} :: 'ae_' ::= {{ com Annotations for expressions }}
+ae {{ tex a^\textsf{e} }} :: 'ae_' ::= {{ com Annotations for expressions }}
  | C :: :: c
 
-av {{ tex a_\textsf{v} }} :: 'av_' ::= {{ com Anotations for values }}
+av {{ tex a^\textsf{v} }} :: 'av_' ::= {{ com Anotations for values }}
  | A :: :: a
 
 e :: 'e_' ::= {{ com Expressions: Annotated pre-expressions }}
@@ -69,7 +69,7 @@ store {{ tex \mu }} :: 'store_' ::=
  | store , l => v  :: :: cons
 
 state {{ tex \sigma }} :: '' ::=
- | < store ; stack ; env ; pe > :: :: state
+ | < store ; stack ; env ; pe > :: :: state {{ tex \left< [[store]]; [[stack]]; [[env]]; [[pe]] \right> }}
 
 v :: 'v_' ::= {{ com Values: Annotated Pre-Values }}
  | ( pv : av )  :: :: v
@@ -82,6 +82,7 @@ pv {{ tex \dot{v} }} :: 'pv_' ::=  {{ com Pre-Values }}
  | str s         :: :: str
  | loc l         :: :: loc
  | x             :: :: x
+ | ()            :: S :: unit
 
 delta {{ tex \delta }} :: 'delta_' ::= {{ com Dictionary values: Internal structure }}
  | emp               :: :: emp
@@ -284,6 +285,84 @@ ctxify store      |- stack <~~ C
 ----------------------------------- :: 'State_ok'
 <store; stack; env; pe> ok
 
+
+defn
+state final
+:: :: state_final :: 'Fin_'
+by
+
+--------------------------------- :: ret
+<store; halt; env; ret v> final
+
+----------------------------------- :: lam
+<store; halt; env; lam x.e> final
+
+defn
+env v ~> v'
+:: :: close_val :: 'S_'
+{{ tex [[env]]([[v]]) = [[v']] }}
+by
+
+defn
+l notin store
+:: :: loc_not_in_store :: ''
+{{ tex [[l]] \not\in [[store]] }}
+by
+
+
+defn
+state --> state'
+:: :: state_step :: 'S_'
+by
+
+
+--------------------------------------------------------------------------------------------- :: let
+<store; stack; env; let x = (pe1:ae1) in e2> --> <store; stack :::: (env, x. e2); env; pe1>
+
+env v ~> v'
+--------------------------------------------------------------------------------------- :: ret
+<store; stack :::: (env, x.(pe:ae)); env'; ret v> --> <store; stack; env, x => v'; pe>
+
+env v ~> v'
+------------------------------------------------------------------- :: app
+<store; stack; env; (pe:ae) v> --> <store; stack :::: v'; env; pe>
+
+------------------------------------------------------------------------------- :: lam
+<store; stack :::: v; env; lam x.(pe:ae)> --> <store; stack; env, x => v; pe>
+
+env v ~> (thunk env' (pe:ae) : av)
+----------------------------------------------------------- :: force
+<store; stack; env; force v> --> <store; stack; env'; pe>
+
+l notin store
+-------------------------------------------------------------------------------- :: ref
+<store; stack; env; ref v> --> <store, l => v; stack; env; ret (loc l : TopV)>
+
+env v1 ~> (loc l : av)
+env v2 ~> v2'
+--------------------------------------------------------------------------------- :: set
+<store; stack; env; set v1 v2> --> <store, l => v2'; stack; env; ret (() : TopV)>
+
+env v1 ~> (loc l : av)
+--------------------------------------------------------------------------- :: get
+<store, l=>v2; stack; env; get v1> --> <store, l=>v2; stack; env; ret v2>
+
+env v1 ~> (dict delta : av)
+env v2 ~> v2'
+env v3 ~> v3'
+--------------------------------------------------------------------------------------------- :: ext
+<store; stack; env; ext v1 v2 v3> --> <store; stack; env; ret (dict (delta, v2'=>v3'):TopV)>
+
+env v2 ~> v2'
+env v1 ~> (dict (delta, v2' => v3) : av)
+--------------------------------------------------------------------- :: proj
+<store; stack; env; proj v1 v2> --> <store; stack; env; ret v3>
+
+% | openDb v :: :: openDb
+% | filterDb v1 v2 :: :: filterDb
+% | joinDb v1 v2 v3 v4 :: :: joinDb
+
+
 grammar
   terminals :: 'terminals_' ::=
     | =>       :: :: Rightarrow {{ tex \Rightarrow }}
@@ -299,6 +378,7 @@ grammar
     | <>       :: :: ne       {{ tex \ne }}
     | ~>       :: :: tildearr {{ tex \leadsto }}
     | ~~>      :: :: tildearr2 {{ tex \leadsto }}
+    | -->      :: :: longrightarrow {{ tex \longrightarrow }}
     | ^^       :: :: bigsrch  {{ tex \bigtriangleup }}
     | VV       :: :: bigpatch {{ tex \bigtriangledown }}
 %    | VV       :: :: bigpatch {{ tex \unlhd }}
