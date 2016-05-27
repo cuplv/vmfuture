@@ -37,7 +37,8 @@ av {{ tex a^\textsf{v} }} :: 'av_' ::= {{ com Anotations for values }}
  | A :: :: a
 
 e :: 'e_' ::= {{ com Expressions: Annotated pre-expressions }}
- | ( pe : ae ) :: :: e
+ | pe @: ae :: :: e {{ tex  [[pe]]~\texttt{@:}~[[ae]] }}
+ | ( e )    :: S :: paren
 
 pe {{ tex \dot{e} }} :: 'pe_' ::= {{ com Pre-Expressions }}
  | e v               :: :: app
@@ -54,6 +55,8 @@ pe {{ tex \dot{e} }} :: 'pe_' ::= {{ com Pre-Expressions }}
  | openDb v :: :: openDb
  | filterDb v1 v2 :: :: filterDb
  | joinDb v1 v2 v3 v4 :: :: joinDb
+
+ | ( e ) :: S :: paren
 
 env {{ tex \rho }} :: 'env_' ::=
  | emp          :: :: emp
@@ -72,7 +75,8 @@ state {{ tex \sigma }} :: '' ::=
  | < store ; stack ; env ; pe > :: :: state {{ tex \left< [[store]]; [[stack]]; [[env]]; [[pe]] \right> }}
 
 v :: 'v_' ::= {{ com Values: Annotated Pre-Values }}
- | ( pv : av )  :: :: v
+ | pv @: av :: :: v {{ tex  [[pv]]~\texttt{@:}~[[av]] }}
+ | ( v )    :: S :: paren
 
 pv {{ tex \dot{v} }} :: 'pv_' ::=  {{ com Pre-Values }}
  | othunk e      :: :: othunk
@@ -82,7 +86,9 @@ pv {{ tex \dot{v} }} :: 'pv_' ::=  {{ com Pre-Values }}
  | str s         :: :: str
  | loc l         :: :: loc
  | x             :: :: x
+ | v ?: av       :: :: chkannot
  | ()            :: S :: unit
+ | ( pv )        :: S :: paren
 
 delta {{ tex \delta }} :: 'delta_' ::= {{ com Dictionary values: Internal structure }}
  | emp               :: :: emp
@@ -99,6 +105,48 @@ defns
 Jtyp :: '' ::=
 
 defn
+dom env >= FV e
+:: :: dom_env_contains_fv_e :: ''
+{{ tex \textsf{dom}([[env]]) \supseteq \textsf{FV}(e) }}
+by
+
+defn
+Ctx |- v closed
+:: :: v_closed :: ''
+{{ com Invariants for closed values }}
+{{ tex [[Ctx]] [[|-]] [[v]] ~~\textsf{closed} }}
+by
+
+defn
+Ctx |- pv closed
+:: :: pv_closed :: ''
+{{ com Invariants for closed values }}
+{{ tex [[Ctx]] [[|-]] [[pv]] ~~\textsf{closed} }}
+by
+
+------------------------------------ :: loc
+ctxify store,l=>v |- loc l closed
+
+------------------------------ :: str
+ctxify store |- str s closed
+
+------------------------------ :: num
+ctxify store |- num n closed
+
+-------------------------------- :: dict_emp
+ctxify store |- dict emp closed
+
+ctxify store |- dict delta closed
+ctxify store |- v1 closed
+ctxify store |- v2 closed
+---------------------------------------------- :: dict_cons
+ctxify store |- dict (delta, v1=>v2) closed
+
+dom env >= FV e
+-------------------------------------- :: thunk
+ctxify store |- thunk env e closed
+
+defn
 Ctx |- e : C
 :: :: type :: ''
 {{ com Expression Typing }}
@@ -106,7 +154,7 @@ by
 
 Ctx |- pe : C
 ----------------------- :: tye
-Ctx |- ( pe : ae ) : C
+Ctx |- ( pe @: ae ) : C
 
 defn
 Ctx |- pe : C
@@ -198,7 +246,7 @@ by
 
 Ctx |- pv : A
 -------------------------- :: tyv
-Ctx |- ( pv : av ) : A
+Ctx |- ( pv @: av ) : A
 
 defn
 Ctx |- pv : A
@@ -210,7 +258,7 @@ by
 Ctx, x : A |- x : A
 
 ------------------------------------------------- :: loc
-ctxify store, l => (pv: A), Ctx |- loc l : A
+ctxify store, l => (pv @: A), Ctx |- loc l : A
 
 ------------------------------------------------- :: Str
 Ctx |- str s : Str
@@ -237,6 +285,9 @@ Ctx' |- e : C
 ------------------------ :: thunk
 Ctx  |- thunk env e : U C
 
+Ctx |- v : TopV
+-------------------- :: topE
+Ctx |- (v ?: A) : A
 
 defn
 Ctx |- env ~~> Ctx'
@@ -298,10 +349,49 @@ by
 <store; halt; env; lam x.e> final
 
 defn
-env v ~> v'
-:: :: close_val :: 'S_'
-{{ tex [[env]]([[v]]) = [[v']] }}
+env ( x ) = v
+:: :: find_var :: ''
+{{ tex [[env]]([[x]]) = [[v]] }}
 by
+
+defn
+env delta ~> delta'
+:: :: close_dict :: 'S_'
+{{ tex [[env]]([[delta]]) \leadsto [[delta']] }}
+by
+
+defn
+env v ~> v'
+:: :: close_pv :: 'S_'
+{{ tex [[env]]([[v]]) \leadsto [[v']] }}
+by
+
+env(x) = v
+---------------------- :: var
+env (x @: av) ~> v
+
+env v ~> (pv @: av)
+---------------------------------- :: chk
+env ((v ?: av) @: av) ~> (pv @: av)
+
+env delta ~> delta'
+----------------------------------------------- :: dict
+env (dict delta @: av) ~> (dict delta' @: av)
+
+----------------------------------- :: num
+env (num n @: av) ~> (num n @: av)
+
+----------------------------------- :: str
+env (str s @: av) ~> (str s @: av)
+
+----------------------------------------- :: loc
+env (loc l @: av) ~> (loc l @: av)
+
+------------------------------------------------ :: othunk
+env (othunk e @: av) ~> (thunk env e @: av)
+
+-------------------------------------------------- :: thunk
+env (thunk env' e @: av) ~> (thunk env' e @: av)
 
 defn
 l notin store
@@ -317,44 +407,44 @@ by
 
 
 --------------------------------------------------------------------------------------------- :: let
-<store; stack; env; let x = (pe1:ae1) in e2> --> <store; stack :::: (env, x. e2); env; pe1>
+<store; stack; env; let x = (pe1@:ae1) in e2> --> <store; stack :::: (env, x. e2); env; pe1>
 
 env v ~> v'
 --------------------------------------------------------------------------------------- :: ret
-<store; stack :::: (env, x.(pe:ae)); env'; ret v> --> <store; stack; env, x => v'; pe>
+<store; stack :::: (env, x.(pe@:ae)); env'; ret v> --> <store; stack; env, x => v'; pe>
 
 env v ~> v'
 ------------------------------------------------------------------- :: app
-<store; stack; env; (pe:ae) v> --> <store; stack :::: v'; env; pe>
+<store; stack; env; (pe@:ae) v> --> <store; stack :::: v'; env; pe>
 
 ------------------------------------------------------------------------------- :: lam
-<store; stack :::: v; env; lam x.(pe:ae)> --> <store; stack; env, x => v; pe>
+<store; stack :::: v; env; lam x.(pe@:ae)> --> <store; stack; env, x => v; pe>
 
-env v ~> (thunk env' (pe:ae) : av)
+env v ~> (thunk env' (pe@:ae) @: av)
 ----------------------------------------------------------- :: force
 <store; stack; env; force v> --> <store; stack; env'; pe>
 
 l notin store
 -------------------------------------------------------------------------------- :: ref
-<store; stack; env; ref v> --> <store, l => v; stack; env; ret (loc l : TopV)>
+<store; stack; env; ref v> --> <store, l => v; stack; env; ret (loc l @: TopV)>
 
-env v1 ~> (loc l : av)
+env v1 ~> (loc l @: av)
 env v2 ~> v2'
 --------------------------------------------------------------------------------- :: set
-<store; stack; env; set v1 v2> --> <store, l => v2'; stack; env; ret (() : TopV)>
+<store; stack; env; set v1 v2> --> <store, l => v2'; stack; env; ret (() @: TopV)>
 
-env v1 ~> (loc l : av)
+env v1 ~> (loc l @: av)
 --------------------------------------------------------------------------- :: get
 <store, l=>v2; stack; env; get v1> --> <store, l=>v2; stack; env; ret v2>
 
-env v1 ~> (dict delta : av)
+env v1 ~> (dict delta @: av)
 env v2 ~> v2'
 env v3 ~> v3'
 --------------------------------------------------------------------------------------------- :: ext
-<store; stack; env; ext v1 v2 v3> --> <store; stack; env; ret (dict (delta, v2'=>v3'):TopV)>
+<store; stack; env; ext v1 v2 v3> --> <store; stack; env; ret (dict (delta, v2'=>v3')@:TopV)>
 
 env v2 ~> v2'
-env v1 ~> (dict (delta, v2' => v3) : av)
+env v1 ~> (dict (delta, v2' => v3) @: av)
 --------------------------------------------------------------------- :: proj
 <store; stack; env; proj v1 v2> --> <store; stack; env; ret v3>
 
@@ -366,6 +456,7 @@ env v1 ~> (dict (delta, v2' => v3) : av)
 grammar
   terminals :: 'terminals_' ::=
     | =>       :: :: Rightarrow {{ tex \Rightarrow }}
+    | ?:       :: :: Annotquestion {{ tex \mathrel{ \texttt{?:} } }}
     | ::::     :: :: dubcolons {{ tex :: }}
     | Lam      :: :: Lambda   {{ tex \Lambda }}
     | forall   :: :: forall {{ tex \forall }}
