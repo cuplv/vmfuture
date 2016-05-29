@@ -276,15 +276,15 @@ pub fn chk_value(env:refl::TEnv, value:obj::PVal, vtyp:refl::VTyp) -> bool {
   panic!("")
 }
 
-pub fn syn_env(env:obj::Env) -> env:refl::TEnv {
+pub fn syn_env(env:obj::Env) -> Option<refl::TEnv> {
   panic!("")
 }
 
-pub fn tenv_ext(env:refl::TEnv, var:obj::Var, typ:obj::VTyp) -> env:refl::TEnv {
+pub fn tenv_ext(env:refl::TEnv, var:obj::Var, typ:refl::VTyp) -> refl::TEnv {
   panic!("")
 }
 
-pub fn syn_exp(env:refl::TEnv, exp:obj::PExp) -> env:refl::CTyp {
+pub fn syn_exp(env:refl::TEnv, exp:obj::PExp) -> Option<refl::CTyp> {
   panic!("")
 }
 

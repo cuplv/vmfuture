@@ -50,13 +50,18 @@ pe {{ tex \dot{e} }} :: 'pe_' ::= {{ com Pre-Expressions }}
  | set v1 v2         :: :: set
  | get v             :: :: get
  | ext v1 v2 v3      :: :: ext
- | proj v1 v2        :: :: proj
+ | proj oa v1 v2        :: :: proj {{ tex [[proj]]_{[[oa]]}~[[v1]]\left[ [[v2]] \right] }}
+ | v ?: av           :: :: chk
 
- | openDb v :: :: openDb
- | filterDb v1 v2 :: :: filterDb
- | joinDb v1 v2 v3 v4 :: :: joinDb
+ | openDb oa v :: :: openDb           {{ tex \texttt{openDb}_{[[oa]]}~[[v]] }}
+ | filterDb oa  v1 v2 :: :: filterDb  {{ tex \texttt{filterDb}_{[[oa]]}~[[v1]]~[[v2]] }}
+ | joinDb oa v1 v2 v3 v4 :: :: joinDb {{ tex \texttt{joinDb}_{[[oa]]}~[[v1]]~[[v2]]~[[v3]]~[[v4]] }}
 
  | ( e ) :: S :: paren
+
+oa {{ tex a^{\textsf{op} } }} :: 'oa_' ::= {{ com Operation annotation }} 
+ | ? :: :: Top    {{ tex \texttt{?} }} {{ com Top modality; some info may be missing }}
+ | ! :: :: Ground {{ tex \texttt{!} }} {{ com Ground modality; no info is missing  }}
 
 env {{ tex \rho }} :: 'env_' ::=
  | emp          :: :: emp
@@ -86,7 +91,6 @@ pv {{ tex \dot{v} }} :: 'pv_' ::=  {{ com Pre-Values }}
  | str s         :: :: str
  | loc l         :: :: loc
  | x             :: :: x
- | v ?: av       :: :: chkannot
  | ()            :: S :: unit
  | ( pv )        :: S :: paren
 
@@ -203,40 +207,91 @@ Ctx |- v3 : B
 ------------------------------------------------- :: ext
 Ctx |- ext v1 v2 v3 : F (Dict (Delta, v2 => B))
 
-Ctx |- v1 : Dict Delta
+Ctx |- v1 : TopV
 Ctx |- v2 : A
-------------------------------------------------- :: projTop
-Ctx |- proj v1 v2 : F TopV
+----------------------------- :: projTop
+Ctx |- proj? v1 v2 : F TopV
 
 Ctx |- v1 : Dict (Delta, v2 => B)
 emp |- v2 : A
-------------------------------------------------- :: proj
-Ctx |- proj v1 v2 : F B
-
+----------------------------------- :: proj
+Ctx |- proj! v1 v2 : F B
 
 Ctx |- v : Str
--------------------------- :: openDbTop
-Ctx |- openDb v : F TopV
+-------------------------------- :: openDb
+Ctx |- openDb? v : F (Db TopV)
 
 Ctx |- v1 : Db A
 Ctx |- v2 : U( A -> F 2)
 --------------------------------- :: filterDb
-Ctx |- filterDb v1 v2 : F (Db A)
+Ctx |- filterDb! v1 v2 : F (Db A)
 
-Ctx |- v1 : Db (Dict (Delta1))
+Ctx |- v1 : Db TopV
 Ctx |- v2 : A1
-Ctx |- v3 : Db (Dict (Delta2))
+Ctx |- v3 : Db TopV
 Ctx |- v4 : A2
------------------------------------------------------------------------------- :: joinDbTop
-Ctx |- joinDb v1 v2 v3 v4 : F (Db TopV)
+------------------------------------------ :: joinDbTop
+Ctx |- joinDb ? v1 v2 v3 v4 : F (Db TopV)
 
 Ctx |- v1 : Db (Dict (Delta1, v2 => B))
 emp |- v2 : A1
 Ctx |- v3 : Db (Dict (Delta2, v4 => B))
 emp |- v4 : A2
 ------------------------------------------------------------------------------ :: joinDb
-Ctx |- joinDb v1 v2 v3 v4 : F (Db (Dict (Delta1, Delta2, v2 => B, v4 => B)))
+Ctx |- joinDb ! v1 v2 v3 v4 : F (Db (Dict (Delta1, Delta2, v2 => B, v4 => B)))
 
+B <= A
+Ctx |- v : B  
+----------------------- :: topE
+Ctx |- v ?: A : F A
+
+defn
+C <= D
+:: :: topordc :: 'ord_'
+{{ tex [[C]] \subseteq_{\top} [[D]] }}
+by
+
+A <= B
+------------ :: ret
+F A <= F B
+
+B <= A
+C <= D
+----------------- :: arr
+A -> C <= B -> D
+
+
+defn
+A <= B
+:: :: topordv :: 'ord_'
+{{ tex [[A]] \subseteq_{\top} [[B]] }}
+by
+
+-------------- :: Top
+A <= TopV
+
+A <= B
+------------ :: Db
+Db A <= Db B
+
+----------------------------- :: DictEmp
+Dict(emp) <= Dict(Delta) 
+
+A <= B
+Dict(Delta) <= Dict(Delta')
+------------------------------------------------- :: DictCons
+Dict(Delta, v1 => A) <= Dict(Delta', v1 => B) 
+
+C <= D
+------------ :: thunk
+U C <= U D
+
+defn
+Ctx |- v <~~ A
+:: :: chkv :: ''
+{{ com Value Checking }}
+{{ tex [[Ctx]] [[|-]] [[v]] \Leftarrow [[A]] }}
+by
 
 defn
 Ctx |- v : A
@@ -284,10 +339,6 @@ Ctx  |- env ~~> Ctx'
 Ctx' |- e : C
 ------------------------ :: thunk
 Ctx  |- thunk env e : U C
-
-Ctx |- v : TopV
--------------------- :: topE
-Ctx |- (v ?: A) : A
 
 defn
 Ctx |- env ~~> Ctx'
@@ -370,10 +421,6 @@ env(x) = v
 ---------------------- :: var
 env (x @: av) ~> v
 
-env v ~> (pv @: av)
----------------------------------- :: chk
-env ((v ?: av) @: av) ~> (pv @: av)
-
 env delta ~> delta'
 ----------------------------------------------- :: dict
 env (dict delta @: av) ~> (dict delta' @: av)
@@ -405,6 +452,10 @@ state --> state'
 :: :: state_step :: 'S_'
 by
 
+
+ctxify store |- v <~~ A
+------------------------------------------------------------------------- :: chk
+<store; stack; env; v ?: A> --> <store; stack; env; ret (pv @: A)>
 
 --------------------------------------------------------------------------------------------- :: let
 <store; stack; env; let x = (pe1@:ae1) in e2> --> <store; stack :::: (env, x. e2); env; pe1>
@@ -446,7 +497,7 @@ env v3 ~> v3'
 env v2 ~> v2'
 env v1 ~> (dict (delta, v2' => v3) @: av)
 --------------------------------------------------------------------- :: proj
-<store; stack; env; proj v1 v2> --> <store; stack; env; ret v3>
+<store; stack; env; proj oa v1 v2> --> <store; stack; env; ret v3>
 
 % | openDb v :: :: openDb
 % | filterDb v1 v2 :: :: filterDb
