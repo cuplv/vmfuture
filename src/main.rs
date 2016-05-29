@@ -272,7 +272,11 @@ macro_rules! oret {
   }}
 }
 
-pub fn chk_value(env:refl::TEnv, value:obj::PVal, vtyp:refl::VTyp) -> bool {
+pub fn chk_pvalue(env:refl::TEnv, value:obj::PVal, vtyp:refl::VTyp) -> bool {
+  panic!("")
+}
+
+pub fn chk_value(env:refl::TEnv, value:obj::Val, vtyp:refl::VTyp) -> bool {
   panic!("")
 }
 
@@ -284,7 +288,11 @@ pub fn tenv_ext(env:refl::TEnv, var:obj::Var, typ:refl::VTyp) -> refl::TEnv {
   panic!("")
 }
 
-pub fn syn_exp(env:refl::TEnv, exp:obj::PExp) -> Option<refl::CTyp> {
+pub fn syn_exp(env:refl::TEnv, exp:obj::Exp) -> Option<refl::CTyp> {
+  panic!("")
+}
+
+pub fn syn_pexp(env:refl::TEnv, exp:obj::PExp) -> Option<refl::CTyp> {
   panic!("")
 }
 
@@ -295,21 +303,21 @@ pub fn chk_stack(stack:obj::Stack, typ:refl::CTyp) -> bool {
     let (frame, stack) = list_pop(stack) ;
     match (frame, typ) {
       (obj::Frame::App(v), 
-       refl::CTyp::Arr(a,c)) => {
-        chk_value(v, a) && chk_stack(stack, c)
-      }
+       refl::CTyp::Arr(a,c)) => { chk_value(list_nil(), v, *a) && chk_stack(stack, *c) }
       (obj::Frame::Let(x,env,e) ,
        refl::CTyp::F(a)) => {
-        chk_value(list_nil(), v, a) 
-          && { let tenv = syn_env(env) ;
-               let tenv = tenv_ext(tenv, x, a) ;
-               let c = syn_exp(tenv, e) ;
-               chk_stack(stack, c)
+        match syn_env(env) { 
+          None => false,
+          Some(tenv) => {
+            let tenv = tenv_ext(tenv, x, *a) ;
+            match syn_exp(tenv, e) {
+              None => false,
+              Some(c) => chk_stack(stack, c)
+            }
           }
+        }
       }
-      _ => {
-        false
-      }
+      _ => false
     }
   }
 }
