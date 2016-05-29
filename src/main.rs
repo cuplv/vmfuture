@@ -91,7 +91,7 @@ pub mod obj {
     // style of CBPV.
     App(Exp,Val), 
     Proj(Val,Val),
-    Ann(Box<PExp>,PVal),
+    Ann(Box<PExp>,super::refl::CTyp),
     Ref(Val),
     Get(Val),
     Set(Val,Val),
@@ -272,47 +272,141 @@ macro_rules! oret {
   }}
 }
 
-pub fn chk_pvalue(env:refl::TEnv, value:obj::PVal, vtyp:refl::VTyp) -> bool {
-  panic!("")
+pub fn syn_tenv(store:&obj::Store, env:obj::Env) -> Option<refl::TEnv> {
+  // TODO
+  drop(store);
+  panic!("list fold")
 }
 
-pub fn chk_value(env:refl::TEnv, value:obj::Val, vtyp:refl::VTyp) -> bool {
-  panic!("")
+pub fn tenv_ext(store:&obj::Store, tenv:refl::TEnv, var:obj::Var, typ:refl::VTyp) -> refl::TEnv {
+  drop(store);
+  map_update(tenv, var, typ)
 }
 
-pub fn syn_env(env:obj::Env) -> Option<refl::TEnv> {
-  panic!("")
+pub fn syn_exp(store:&obj::Store, tenv:refl::TEnv, exp:obj::Exp) -> Option<refl::CTyp> {
+  syn_pexp(store, tenv, *exp.pexp)
 }
 
-pub fn tenv_ext(env:refl::TEnv, var:obj::Var, typ:refl::VTyp) -> refl::TEnv {
-  panic!("")
+pub fn chk_exp(store:&obj::Store, env:refl::TEnv, exp:obj::Exp, ctyp:refl::CTyp) -> bool {
+  chk_pexp(store, env, *exp.pexp, ctyp)
 }
 
-pub fn syn_exp(env:refl::TEnv, exp:obj::Exp) -> Option<refl::CTyp> {
-  panic!("")
+pub fn syn_value(store:&obj::Store, tenv:refl::TEnv, value:obj::Val) -> Option<refl::VTyp> {
+  syn_pvalue(store, tenv, *value.pval)
 }
 
-pub fn syn_pexp(env:refl::TEnv, exp:obj::PExp) -> Option<refl::CTyp> {
-  panic!("")
+pub fn chk_value(store:&obj::Store, tenv:refl::TEnv, value:obj::Val, vtyp:refl::VTyp) -> bool {
+  chk_pvalue(store, tenv, *value.pval, vtyp)
 }
 
-pub fn chk_stack(stack:obj::Stack, typ:refl::CTyp) -> bool {
+pub fn syn_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal) -> Option<refl::VTyp> {
+  use refl::VTyp;
+  use obj::PVal;
+  match value {
+    PVal::Thunk(env, e) => { 
+      match syn_tenv(store, env) { 
+        None => None,
+        Some(tenv) => match syn_exp(store, tenv, e) {
+          None => None,
+          Some(c) => Some(VTyp::U(Box::new(c)))
+        }}},
+    PVal::OpenThunk(e) => { 
+      match syn_exp(store, tenv, e) {
+        None => None,
+        Some(c) => Some(VTyp::U(Box::new(c)))
+      }},
+    PVal::Dict(d) => { match panic!("list fold") { None => None, Some(dt) => Some(VTyp::Dict(dt)) } }
+    PVal::Num(_)  => Some(VTyp::Num),
+    PVal::Str(_)  => Some(VTyp::Str),
+    PVal::Loc(l)  => { match panic!("store lookup") { None => None, Some(dt) => Some(VTyp::Dict(dt)) } }
+    _             => panic!(""),
+  }
+}
+
+pub fn chk_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal, vtyp:refl::VTyp) -> bool {
+  use refl::VTyp;
+  use obj::PVal;
+  match (vtyp, value) {
+    (VTyp::U(c),     PVal::Thunk(env, e)) => { match syn_tenv(store, env) { None => false,
+                                                                            Some(tenv) => chk_exp(store, tenv, e, *c) }},
+    (VTyp::U(c),     PVal::OpenThunk(e))  => { chk_exp(store, tenv, e, *c)  },
+    (VTyp::Dict(dt), PVal::Dict(d))       => panic!("list fold"),
+    (VTyp::Num,      PVal::Num(_))        => true,
+    (VTyp::Str,      PVal::Str(_))        => true,
+    (VTyp::Ref(a),   PVal::Loc(l))        => panic!("store lookup"),
+    (_,              _           )        => false,
+  }
+}
+
+pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::CTyp) -> bool {
+  use refl::{VTyp,CTyp};
+  use obj::PExp;
+  match (ctyp, pexp) {
+    (c,              PExp::Force(v))     => chk_value(store, tenv, v, VTyp::U(Box::new(c))),
+    (CTyp::F(a),     PExp::Ret(v))       => chk_value(store, tenv, v, *a),
+    (CTyp::Arr(a,c), PExp::Lam(x,e))     => { let tenv = map_update(tenv, x, *a);
+                                              chk_exp(store, tenv, e, *c)
+    },
+    (c,              PExp::App(e,v))     => { match syn_exp(store, tenv.clone(), e) 
+                                              {
+                                                Some(CTyp::Arr(a, c)) => chk_value(store, tenv, v, *a),
+                                                _ => false,
+                                              }
+    },
+    (CTyp::F(a),     PExp::Proj(v1, v2)) => { match syn_value(store, tenv.clone(), v1) 
+                                                {
+                                                  Some(VTyp::Dict(delta)) => { chk_value(store, tenv.clone(), v2, *a) },
+                                                  _ => false,
+                                                }
+    },
+    (c1,             PExp::Ann(e, c2))   => (c1 == c2),
+    (CTyp::F(a),     PExp::Ref(v))       => chk_value(store, tenv, v, *a),
+    (CTyp::F(a),     PExp::Get(v))       => chk_value(store, tenv, v, VTyp::Ref(a)),
+    (CTyp::F(a),     PExp::Set(v1,v2))   => { match (syn_value(store, tenv.clone(), v1),
+                                                     syn_value(store, tenv,         v2)) 
+                                              {
+                                                (Some(VTyp::Ref(a1)), Some(a2)) => { *a1 == a2 },
+                                                _ => false,
+                                              }
+    },
+    (c,              PExp::Let(x,e1,e2)) => { match syn_exp(store, tenv.clone(), e1) 
+                                              {
+                                                Some(CTyp::F(a)) => {
+                                                  let tenv = map_update(tenv, x, *a);
+                                                  chk_exp(store, tenv, e2, c)
+                                                },
+                                                _ => panic!("")
+                                              }
+    }
+    _ => panic!(""),
+  }
+}
+
+pub fn syn_pexp(store:&obj::Store, env:refl::TEnv, exp:obj::PExp) -> Option<refl::CTyp> {
+  // TODO
+  match exp {
+    _ => panic!("")
+  }
+}
+pub fn chk_stack(store:&obj::Store, stack:obj::Stack, typ:refl::CTyp) -> bool {
   use adapton::collections::*;
   if list_is_empty(&stack) { return false }
   else {
     let (frame, stack) = list_pop(stack) ;
     match (frame, typ) {
       (obj::Frame::App(v), 
-       refl::CTyp::Arr(a,c)) => { chk_value(list_nil(), v, *a) && chk_stack(stack, *c) }
+       refl::CTyp::Arr(a,c)) => { 
+        chk_value(store, list_nil(), v, *a) 
+          && chk_stack(store, stack, *c) }
       (obj::Frame::Let(x,env,e) ,
        refl::CTyp::F(a)) => {
-        match syn_env(env) { 
+        match syn_tenv(store, env) { 
           None => false,
           Some(tenv) => {
-            let tenv = tenv_ext(tenv, x, *a) ;
-            match syn_exp(tenv, e) {
+            let tenv = tenv_ext(store, tenv, x, *a) ;
+            match syn_exp(store, tenv, e) {
               None => false,
-              Some(c) => chk_stack(stack, c)
+              Some(c) => chk_stack(store, stack, c)
             }
           }
         }
