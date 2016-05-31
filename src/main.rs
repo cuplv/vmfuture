@@ -31,6 +31,8 @@ pub mod refl {
   pub type VAnn = VTyp;
   pub type CAnn = CTyp;
   pub type TEnv = List<(super::obj::Var, VTyp)>;
+
+  pub fn do_pass(st:super::obj::State) -> Option<super::obj::State> { super::chk_state(st) }
 }
 
 pub mod obj {  
@@ -416,6 +418,21 @@ pub fn chk_stack(store:&obj::Store, stack:obj::Stack, typ:refl::CTyp) -> bool {
   }
 }
 
+pub fn chk_state(st:obj::State) -> Option<obj::State> {
+  match syn_tenv(&st.store, st.env.clone()) {
+    None => None,
+    Some(tenv) => {
+      match syn_pexp(&st.store, tenv, st.pexp.clone()) {
+        None    => None,
+        Some(c) => { 
+          if chk_stack(&st.store, st.stack.clone(), c) { Some(st) }
+          else { None }
+        }
+      }
+    }
+  }
+}
+
 pub fn is_final(exp:&obj::PExp) -> bool {
   match *exp {
     obj::PExp::Ret(_)   => true,
@@ -467,6 +484,10 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
   use adapton::collections::*;
 
   if is_final(&st.pexp) {
+    let st = match refl::do_pass (st) {
+      None     => panic!("reflective layer chose to halt execution."),
+      Some(st) => st,
+    };
     if list_is_empty(&st.stack) { Err(st) }
     else {
       let (fr, stack) = list_pop(st.stack);
