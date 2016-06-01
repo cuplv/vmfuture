@@ -1,5 +1,8 @@
 extern crate csv;
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+
 //#[macro_use]
 extern crate adapton;
 use adapton::collections::*;
@@ -20,9 +23,9 @@ pub mod refl {
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum VTyp {
     Top,
-    Num,
-    Str,
+    Num, Str, Bool,
     Dict(Box<Dict>),
+    Db(Box<VTyp>), // "Database" (A multiset of some kind)
     Ref(Box<VTyp>),
     U(Box<CTyp>), // Thunk
   }
@@ -32,7 +35,20 @@ pub mod refl {
   pub type CAnn = CTyp;
   pub type TEnv = List<(super::obj::Var, VTyp)>;
 
-  pub fn do_pass(st:super::obj::State) -> Option<super::obj::State> { super::chk_state(st) }
+  pub fn do_pass(st:super::obj::State) -> Option<super::obj::State> { 
+    println!("do pass");
+    super::chk_state(st) 
+  }
+}
+
+impl Debug for obj::State {
+  fn fmt(&self, f:&mut Formatter) -> std::fmt::Result { 
+    write!(f, "{{\n\tstore:{:?},\n\tstack:{:?},\n\tenv:{:?},\n\tpexp:{:?}\n}}",
+           self.store,
+           self.stack,
+           self.env,
+           self.pexp)
+  }
 }
 
 pub mod obj {  
@@ -49,7 +65,7 @@ pub mod obj {
 
   /// State of VM Evaluation:
   /// A Store, an Environment, a Stack (of Evaluation Frames), and an expression.
-  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
+  #[derive(PartialEq,Eq,Hash,Clone)]
   pub struct State {
     pub store: Store,
     pub nloc:  usize,
@@ -70,16 +86,20 @@ pub mod obj {
     /// value produced by the current computation and run the
     /// expression given by this frame.
     Let(Var, Env, Exp), 
+    /// Computation Annotation, to be confirmed via OVV by the
+    /// reflective layer, or else checked dynamically, upon completion
+    /// of a terminal computation (when this frame is popped).
+    Ann(super::refl::CAnn)
   }
 
   /// Primitives
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum Prim {
     Halt,
-    DbOpen,
-    DbFilter,
-    DbJoin,
-    Eq,
+    DbOpen(Val),
+    DbFilter(Val,Val),
+    DbJoin(Val,Val,Val,Val),
+    Eq(Val,Val),
   }
   /// Pre-Expressions
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
@@ -205,6 +225,14 @@ macro_rules! oapp {
 }
 
 #[macro_export]
+macro_rules! oann {
+  { $lhs:expr ,?: $ctyp:expr } => {{
+    let pe = obj::PExp::Ann($lhs.pexp, $ctyp) ;
+    obj::Exp{pexp:Box::new(pe), cann:refl::CTyp::Top}
+  }};
+}
+
+#[macro_export]
 macro_rules! olet {
   { $var:ident = $rhs:expr ; $body:expr } => {{
     let pexp = obj::PExp::Let(stringify!($var).to_string(), $rhs, $body);
@@ -224,12 +252,52 @@ macro_rules! oproj {
 }
 
 #[macro_export]
-macro_rules! oprim {
-  ( $prim:expr ) => {{
-    let pexp = obj::PExp::Prim( $prim );
-    let exp  = obj::Exp{pexp:Box::new(pexp), cann:refl::CTyp::Top};
-    let pval = obj::PVal::Thunk( adapton::collections::map_empty(), exp );
-    obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}
+macro_rules! ohalt {
+  ( ) => {{
+    let pexp = obj::PExp::Prim(obj::Prim::Halt);
+    obj::Exp{pexp:Box::new(pexp), cann:refl::CTyp::Top}
+  }}
+}
+
+// #[macro_export]
+// macro_rules! oprim {
+//   ( $prim:expr ) => {{
+//     let pexp = obj::PExp::Prim( $prim );
+//     let exp  = obj::Exp{pexp:Box::new(pexp), cann:refl::CTyp::Top};
+//     let pval = obj::PVal::Thunk( adapton::collections::map_empty(), exp );
+//     obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}
+//   }}
+// }
+
+#[macro_export]
+macro_rules! oopendb {
+  ( $v1:expr ) => {{
+    let pexp = obj::PExp::Prim( obj::Prim::DbOpen( $v1 ) );
+    obj::Exp{pexp:Box::new(pexp), cann:refl::CTyp::Top}
+  }}
+}
+
+#[macro_export]
+macro_rules! ofilterdb {
+  ( $v1:expr, $v2:expr ) => {{
+    let pexp = obj::PExp::Prim( obj::Prim::DbFilter( $v1, $v2 ) );
+    obj::Exp{pexp:Box::new(pexp), cann:refl::CTyp::Top}
+  }}
+}
+
+#[macro_export]
+macro_rules! oeq {
+  ( $v1:expr, $v2:expr ) => {{
+    let pexp = obj::PExp::Prim( obj::Prim::Eq( $v1, $v2 ) );
+    obj::Exp{pexp:Box::new(pexp), cann:refl::CTyp::Top}
+  }}
+}
+
+#[macro_export]
+macro_rules! ojoindb {
+  ( $v1:expr, $v2:expr, $v3:expr, $v4:expr ) => {{
+    let pexp = obj::PExp::Prim( obj::Prim::DbJoin($v1, $v2, $v3, $v4 ) );
+    obj::Exp{pexp:Box::new(pexp), cann:refl::CTyp::Top}
   }}
 }
 
@@ -286,9 +354,9 @@ pub fn syn_tenv(store:&obj::Store, env:obj::Env) -> Option<(refl::TEnv, obj::Env
                None              => None,
                Some((tenv, env)) => {
                  match syn_value(store, tenv.clone(), v) {
-                   None    => None,                   
-                   Some(v) => Some((map_update(tenv, x.clone(), v.vann.clone()),
-                                    map_update(env,  x,         v))),
+                   None          => None,                   
+                   Some((vt, v)) => Some( ( map_update(tenv, x.clone(), vt),
+                                            map_update(env,  x,          v)) ),
                  }
                }
              }))
@@ -299,10 +367,10 @@ pub fn tenv_ext(store:&obj::Store, tenv:refl::TEnv, var:obj::Var, typ:refl::VTyp
   map_update(tenv, var, typ)
 }
 
-pub fn syn_exp(store:&obj::Store, tenv:refl::TEnv, exp:obj::Exp) -> Option<obj::Exp> {
+pub fn syn_exp(store:&obj::Store, tenv:refl::TEnv, exp:obj::Exp) -> Option<(refl::CTyp, obj::Exp)> {
   match syn_pexp(store, tenv, *exp.pexp) {
     None           => None,
-    Some((ct, pe)) => Some(obj::Exp{pexp:Box::new(pe), cann:ct}),
+    Some((ct, pe)) => Some((ct.clone(), obj::Exp{pexp:Box::new(pe), cann:ct})),
   }
 }
 
@@ -313,10 +381,10 @@ pub fn chk_exp(store:&obj::Store, env:refl::TEnv, exp:obj::Exp, ctyp:refl::CTyp)
   }
 }
 
-pub fn syn_value(store:&obj::Store, tenv:refl::TEnv, value:obj::Val) -> Option<obj::Val> {
+pub fn syn_value(store:&obj::Store, tenv:refl::TEnv, value:obj::Val) -> Option<(refl::VTyp, obj::Val)> {
   match syn_pvalue(store, tenv, *value.pval) {
     None           => None,
-    Some((vt, pv)) => { Some(obj::Val{pval:Box::new(pv), vann:vt}) },
+    Some((vt, pv)) => { Some((vt.clone(), obj::Val{pval:Box::new(pv), vann:vt})) },
   }
 }
 
@@ -330,99 +398,138 @@ pub fn chk_value(store:&obj::Store, tenv:refl::TEnv, value:obj::Val, vtyp:refl::
 pub fn syn_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal) -> Option<(refl::VTyp, obj::PVal)> {
   use refl::VTyp;
   use obj::PVal;
-  panic!("")
-  // match value {
-  //   PVal::Thunk(env, e) => { 
-  //     match syn_tenv(store, env) { 
-  //       None       => None,
-  //       Some(tenv) => match syn_exp(store, tenv, e) {
-  //         None     => None,
-  //         Some(c)  => Some(VTyp::U(Box::new(c)))
-  //       }}},
-  //   PVal::OpenThunk(e) => { 
-  //     match syn_exp(store, tenv, e) {
-  //       None    => None,
-  //       Some(c) => Some(VTyp::U(Box::new(c)))
-  //     }},
-  //   PVal::Dict(d) => { 
-  //     let dt = {
-  //       let dt : refl::Dict = map_empty() ;
-  //       map_fold(d, Some(dt),
-  //                Rc::new(|k,v,dt| {
-  //                  match dt {
-  //                    None => None,
-  //                    Some(dt) => {
-  //                      let k : obj::Val = k ;
-  //                      let kt = syn_value(store, tenv.clone(), k.clone()) ;
-  //                      let vt = syn_value(store, tenv.clone(), v) ;
-  //                      match (kt, vt) {
-  //                        (Some(kt), Some(vt)) => { Some(map_update(dt, k, vt)) }
-  //                        _ => None,
-  //                      }}}}))
-  //     };
-  //     match dt {
-  //       None     => None,
-  //       Some(dt) => Some(VTyp::Dict(Box::new(dt)))
-  //     }
-  //   }
-  //   PVal::Num(_)  => Some(VTyp::Num),
-  //   PVal::Str(_)  => Some(VTyp::Str),
-  //   PVal::Loc(l)  => { match map_find(store, &l) { 
-  //     None    => None, 
-  //     Some(v) => Some(v.vann) // use stored value's annotation; avoid traversing stored value v; avoids cycles.
-  //   } }
-  //   _             => panic!(""),
-  // }
+  match value {
+    PVal::Var(x)  => { match map_find(&tenv, &x) {
+      None     => None,
+      Some(xt) => {
+        Some((xt, PVal::Var(x)))
+      }}}
+    PVal::Num(n)  => Some((VTyp::Num, PVal::Num(n))),
+    PVal::Str(s)  => Some((VTyp::Str, PVal::Str(s))),
+    PVal::Loc(l)  => { match map_find(store, &l) { 
+      None    => None, 
+      Some(v) => {
+        // use stored value's annotation; 
+        // avoid traversing stored value v; avoids cycles.
+        Some((v.vann, PVal::Loc(l)))
+      }
+    }}
+    PVal::Dict(d) => { 
+      let ds = {
+        let d0  : obj::Dict  = map_empty() ;
+        let dt0 : refl::Dict = map_empty() ;
+        map_fold(d, Some((dt0, d0)),
+                 Rc::new(|k,v,ds| {
+                   match ds {
+                     None => None,
+                     Some((dt, d)) => {
+                       let k : obj::Val = k ;
+                       let v : obj::Val = v ;
+                       match ( syn_value(store, tenv.clone(), k),
+                               syn_value(store, tenv.clone(), v) 
+                       ) {
+                         (Some((kt, k)), Some((vt, v))) => { Some(
+                           ( map_update(dt, k.clone(), vt),
+                             map_update(d,  k,         v )
+                           )
+                         )}                          
+                         _ => None,
+                       }}}}))
+        };
+      match ds {
+        None          => None,
+        Some((dt, d)) => Some(( VTyp::Dict(Box::new(dt)), PVal::Dict(d) ))
+      }
+    }
+    PVal::Thunk(env, e) => { 
+      match syn_tenv(store, env) { 
+        None              => None,
+        Some((tenv, env)) => match syn_exp(store, tenv, e) {
+          None         => None,
+          Some((c, e)) => Some( (VTyp::U(Box::new(c)),
+                                 PVal::Thunk(env, e)) )
+        }}},
+    
+    pv => panic!("syn_pvalue {:?}", pv),
+  }
 }
 
 pub fn chk_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal, vtyp:refl::VTyp) -> Option<obj::PVal> {
   use refl::VTyp;
   use obj::PVal;
-  panic!("")
-  // match (vtyp, value) {
-  //   (VTyp::U(c),     PVal::Thunk(env, e)) => { match syn_tenv(store, env) 
-  //                                              { 
-  //                                                None            => None,
-  //                                                Some(env, tenv) => {
-  //                                                  match chk_exp(store, tenv, e, *c) {
-  //                                                    None    => None,
-  //                                                    Some(e) => Some(Val{pval:PVal::Thunk(env, e), vann:VTyp::U(c)}),
-  //                                                  }
-  //                                                }
-  //                                              }
-  //   }
-
-  //   (VTyp::U(c),     PVal::OpenThunk(e))  => { chk_exp(store, tenv, e, *c)  
-                                               
-  //   },
-  //   (VTyp::Dict(dt), PVal::Dict(d))       => { map_fold
-  //                                              (d, true, Rc::new(|k:obj::Val,v:obj::Val,ret:bool| {
-  //                                                if !ret { false } else { 
-  //                                                  let kt = syn_value(store, map_empty(), k.clone());
-  //                                                  let vt = syn_value(store, map_empty(), v);
-  //                                                  match (kt, vt) {
-  //                                                    (Some(kt), Some(vt)) => match map_find(&*dt, &k) {
-  //                                                      Some(kt2) => kt == kt2,
-  //                                                      None => false,
-  //                                                    },
-  //                                                    _ => false,
-  //                                                  }}})) 
-  //   },
-  //   (VTyp::Num,      PVal::Num(_))        => true,
-  //   (VTyp::Str,      PVal::Str(_))        => true,
-  //   (VTyp::Ref(a),   PVal::Loc(l))        => { match map_find(store, &l) { 
-  //     None    => false, 
-  //     Some(v) => (v.vann == *a),
-  //   }}
-  //   (_,              _           )        => false,
-  // }
+  match (vtyp, value) {
+    (VTyp::Str, PVal::Str(s)) => Some(PVal::Str(s)),
+    (VTyp::Num, PVal::Num(n)) => Some(PVal::Num(n)),
+    (VTyp::U(c), PVal::Thunk(env, e)) => { 
+      match syn_tenv(store, env) 
+      { 
+        None => None,
+        Some((tenv, env)) => {
+          match chk_exp(store, tenv, e, *c) {
+            None    => None,
+            Some(e) => Some(PVal::Thunk(env, e))
+          }
+        }
+      }
+    }
+    (VTyp::U(c), PVal::OpenThunk(e)) => { 
+      match chk_exp(store, tenv, e, *c) {
+        None => None,
+        Some(e) => Some(PVal::OpenThunk(e))
+      }        
+    }
+    // (VTyp::Dict(dt), PVal::Dict(d))       => { map_fold
+    //                                            (d, true, Rc::new(|k:obj::Val,v:obj::Val,ret:bool| {
+    //                                              if !ret { false } else { 
+    //                                                let kt = syn_value(store, map_empty(), k.clone());
+    //                                                let vt = syn_value(store, map_empty(), v);
+    //                                                match (kt, vt) {
+    //                                                  (Some(kt), Some(vt)) => match map_find(&*dt, &k) {
+    //                                                    Some(kt2) => kt == kt2,
+    //                                                    None => false,
+    //                                                  },
+    //                                                  _ => false,
+    //                                                }}})) 
+    // },
+    // (VTyp::Ref(a),   PVal::Loc(l))        => { match map_find(store, &l) { 
+    //   None    => false, 
+    //   Some(v) => (v.vann == *a),
+    // }}
+    (vt, v)        => panic!("chk_pvalue {:?} {:?}", vt, v),
+  }
 }
 
 pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::CTyp) -> Option<obj::PExp> {
-  panic!("")
-  // use refl::{VTyp,CTyp};
-  // use obj::PExp;
-  // match (ctyp, pexp) {
+  use refl::{VTyp,CTyp};
+  use obj::PExp;
+  println!("-- chk_pexp {:?}\n <== {:?}", pexp, ctyp);
+  match (ctyp, pexp) {    
+    // Lambda is checking mode
+    (CTyp::Arr(a,c), PExp::Lam(x,e)) => { 
+      let tenv = map_update(tenv, x.clone(), *a);
+      match chk_exp(store, tenv, e, *c) {
+        None => None,
+        Some(e) => Some(PExp::Lam(x, e))
+      }
+    },
+    // For other forms: 
+    // Do synthesis and confirm that types match:
+    (c, e) => {
+      match syn_pexp(store, tenv, e) {
+        None => None,
+        Some((c2, e)) => {
+          // XXX: Subsume rule
+          if c == c2 { Some(e) }
+          else { 
+            println!("subsumption failed:\n\t{:?}\n <>\t{:?}", c, c2);
+            None 
+          }
+        }
+      }
+    }
+  }
+}
+
   //   (c,              PExp::Force(v))     => chk_value(store, tenv, v, VTyp::U(Box::new(c))),
   //   (CTyp::F(a),     PExp::Ret(v))       => chk_value(store, tenv, v, *a),
   //   (CTyp::Arr(a,c), PExp::Lam(x,e))     => { let tenv = map_update(tenv, x, *a);
@@ -461,12 +568,153 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
   //   }
   //   _ => panic!(""),
   // }
-}
 
-pub fn syn_pexp(store:&obj::Store, env:refl::TEnv, exp:obj::PExp) -> Option<(refl::CTyp, obj::PExp)> {
-  // TODO
+
+pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(refl::CTyp, obj::PExp)> {
+  use obj::PExp;
+  use obj::Prim;
+  use refl::CTyp;
+  use refl::VTyp;
+  println!("-- syn_pexp {:?}", exp);
   match exp {
-    _ => panic!("")
+    PExp::Ret(v) => { 
+    match syn_value(store, tenv, v) {
+      None          => None,
+      Some((vt, v)) => Some( (refl::CTyp::F(Box::new(vt)), 
+                              obj::PExp::Ret(v)) )
+    }},    
+    PExp::Ann(e, et) => {
+      match chk_pexp(store, tenv, *e, et.clone()) {
+        None    => None,
+        Some(e) => Some((et, e))
+      }
+    }
+    PExp::Prim(Prim::Halt) => { 
+      Some((CTyp::Top, PExp::Prim(Prim::Halt))) 
+    }
+    PExp::Prim(Prim::Eq(v1, v2)) => {
+      match (syn_value(store, tenv.clone(), v1),
+             syn_value(store, tenv,         v2)) {
+        (Some((v1t, v1)), Some((v2t, v2))) => {
+          Some((CTyp::F( Box::new( VTyp::Bool ) ),
+                PExp::Prim(Prim::Eq(v1, v2))))
+        }
+        _ => None
+      }      
+    },
+    PExp::Prim(Prim::DbOpen(v)) => {
+      match chk_value(store, tenv, v, refl::VTyp::Str) {
+        None => None,
+        Some(v) => {
+          Some(( CTyp::F(Box::new(VTyp::Db(Box::new(VTyp::Top)))), 
+                 PExp::Prim(Prim::DbOpen(v) )))
+        },
+      }
+    },
+    PExp::Prim(Prim::DbFilter(v1, v2)) => {
+      match syn_value(store, tenv.clone(), v1) {
+        None => None,
+        Some(( VTyp::Db( a ), v1 )) => {
+          let f_bool = CTyp::F( Box::new(VTyp::Bool ) );
+          let f_db   = CTyp::F( Box::new(VTyp::Db(a.clone())) ) ;
+          match chk_value( store, tenv, v2, 
+                           VTyp::U(Box::new(CTyp::Arr(a, Box::new( f_bool ) ))) ) {
+            None => None,
+            Some(v2) => {
+              Some(( f_db, PExp::Prim(Prim::DbFilter(v1, v2)) ))
+            }
+          }
+        },
+        _ => None,
+      }
+    },
+    PExp::Prim(Prim::DbJoin(v1, v2, v3, v4)) => {
+      match  (syn_value(store, tenv.clone(), v1),
+              syn_value(store, tenv.clone(), v2),
+              syn_value(store, tenv.clone(), v3),
+              syn_value(store, tenv.clone(), v4)) {
+        ( Some((v1t, v1)), Some((v2t, v2)), 
+          Some((v3t, v3)), Some((v4t, v4)) ) => {          
+          match(v1t, v3t) {
+            (VTyp::Db(ref a), VTyp::Db(ref b)) if **a == VTyp::Top && **b == VTyp::Top => {
+              let f_db = CTyp::F( Box::new(VTyp::Db( Box::new(VTyp::Top) )) ) ;
+              Some(( f_db, PExp::Prim(Prim::DbJoin(v1, v2, v3, v4)) ))
+            },
+            (VTyp::Db(a), VTyp::Db(b)) => {
+              panic!("")
+            },
+            _ => None,
+          }
+        },
+        _ => None,
+      }
+    },
+    PExp::Let(x,e1,e2) => {
+      match syn_exp(store, tenv.clone(), e1) {
+        None => None,
+        Some((CTyp::F(a), e1)) => {
+          let tenv = map_update(tenv, x.clone(), *a) ;
+          match syn_exp(store, tenv, e2) {
+            None => None,            
+            Some((c, e2)) => {
+              Some((c, PExp::Let(x,e1,e2)))
+            }
+          }
+        },
+        _ => None,
+      }},      
+    PExp::App(e,v) => {
+      match syn_exp(store, tenv.clone(), e) {
+        None => None,
+        Some((CTyp::Arr(a, c), e)) => {
+          match chk_value(store, map_empty(), v, *a) {
+            None => None,
+            Some(v) => {
+              Some((*c, PExp::App(e, v)))
+            }
+          }
+        },
+        _ => None,
+      }
+    },
+    PExp::Force(v) => {
+      match syn_value(store, tenv, v) {
+        None => None,
+        Some((VTyp::U(c), v)) => {
+          Some((*c, PExp::Force(v)))
+        },
+        _ => None,
+      }
+    }
+    PExp::Proj(v1, v2) => {
+      match syn_value(store, tenv.clone(), v1) {
+        None => None,
+        Some((VTyp::Top, v1)) => {
+          match syn_value(store, tenv, v2) {
+            None => None,
+            Some((v2t, v2)) => {
+              Some((CTyp::F(Box::new(VTyp::Top)), // imprecise
+                    PExp::Proj(v1, v2)))                  
+            }
+          }          
+        },
+        Some((VTyp::Dict(delta), v1)) => {
+          match syn_value(store, tenv, v2) {
+            None => None,
+            Some((v2t, v2)) => {
+              match map_find(&*delta, &v2) {
+                None      => None,
+                Some(v3t) => Some((CTyp::F(Box::new(v3t)), // precise
+                                   PExp::Proj(v1, v2)))                  
+              }
+            }
+          }
+        },
+        _ => None,
+      }
+
+    }
+    pe => panic!("syn_pexp {:?}", pe)
   }
 }
 pub fn chk_stack(store:&obj::Store, stack:obj::Stack, typ:refl::CTyp) -> Option<obj::Stack> {
@@ -490,7 +738,7 @@ pub fn chk_stack(store:&obj::Store, stack:obj::Stack, typ:refl::CTyp) -> Option<
             let tenv = tenv_ext(store, tenv, x.clone(), *a) ;
             match syn_exp(store, tenv, e) {
               None => None,
-              Some(e) => match chk_stack(store, stack, e.cann.clone()) {
+              Some((et, e)) => match chk_stack(store, stack, et) {
                 None => None,
                 Some(stack) => {
                   Some(list_cons(obj::Frame::Let(x,env,e), stack))
@@ -514,9 +762,9 @@ pub fn chk_state(st:obj::State) -> Option<obj::State> {
                        None => None,
                        Some(store) => {
                          match syn_value(&store0, map_empty(), v) {
-                           Some(v) => Some(map_update(store, l, v)),
-                           None    => None,
-                         }}}));
+                           Some((_, vt)) => Some(map_update(store, l, vt)),
+                           None          => None,
+                         }}}));  
   match store {
     None => None,
     Some(store) => {
@@ -576,10 +824,10 @@ pub fn initial_state(e:obj::PExp) -> obj::State {
   use adapton::collections::*;
 
   let env : obj::Env = map_empty();
-  let env = map_update(env, "halt".to_string(),     oprim!(obj::Prim::Halt));
-  let env = map_update(env, "openDb".to_string(),   oprim!(obj::Prim::DbOpen));
-  let env = map_update(env, "filterDb".to_string(), oprim!(obj::Prim::DbFilter));
-  let env = map_update(env, "joinDb".to_string(),   oprim!(obj::Prim::DbJoin));
+  //let env = map_update(env, "halt".to_string(),     oprim!(obj::Prim::Halt));
+  //let env = map_update(env, "openDb".to_string(),   oprim!(obj::Prim::DbOpen));
+  //let env = map_update(env, "filterDb".to_string(), oprim!(obj::Prim::DbFilter));
+  //let env = map_update(env, "joinDb".to_string(),   oprim!(obj::Prim::DbJoin));
 
   obj::State{store:map_empty(),
              nloc: 0,
@@ -588,16 +836,17 @@ pub fn initial_state(e:obj::PExp) -> obj::State {
              pexp: e}
 }
 
+
+
 pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
   use obj::*;
   //use obj::PExp::*;
-  use adapton::collections::*;
-
+  use adapton::collections::*;  
+  let st = match refl::do_pass (st.clone()) {
+    None     => { println!("! reflective layer chose to halt execution."); st }
+    Some(st) => st,
+  };  
   if is_final(&st.pexp) {
-    let st = match refl::do_pass (st) {
-      None     => panic!("reflective layer chose to halt execution."),
-      Some(st) => st,
-    };
     if list_is_empty(&st.stack) { Err(st) }
     else {
       let (fr, stack) = list_pop(st.stack);
@@ -616,64 +865,25 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
       PExp::Prim(prim) => {
         match prim {
           Prim::Halt => { return Err(State{pexp:PExp::Ret(ounit!()), ..st}) }
-          Prim::DbOpen => {
-            let (arg, stack) = {
-              let (fr, stack) = list_pop(st.stack);              
-              match fr {
-                Frame::App(v) => (v, stack),
-                _ => panic!("stuck: DbOpen expected an argument")
-              }}; 
-            // TODO: Create/Open a database here!
-            State{stack:stack, pexp:PExp::Ret(ounit!()), ..st}
+          Prim::Eq(v1, v2) => {
+            // TODO: 
+            State{pexp:PExp::Ret(ounit!()), ..st}
           }
-          Prim::DbFilter => {
-            let (arg1, stack) = {
-              let (fr, stack) = list_pop(st.stack);              
-              match fr {
-                Frame::App(v) => (v, stack),
-                _ => panic!("stuck: DbOpen expected a first argument")
-              }}; 
-            let (arg2, stack) = {
-              let (fr, stack) = list_pop(stack);              
-              match fr {
-                Frame::App(v) => (v, stack),
-                _ => panic!("stuck: DbOpen expected a second argument")
-              }}; 
-            // TODO: Create/Open a database here!
-            State{stack:stack, pexp:PExp::Ret(ounit!()), ..st}
+          Prim::DbOpen(v) => {
+            // TODO: XXX: Return a database here! (either author or book)
+            State{pexp:PExp::Ret(ounit!()), ..st}
           }
-          Prim::DbJoin => {
-            let (arg, stack) = {
-              let (fr, stack) = list_pop(st.stack);              
-              match fr {
-                Frame::App(v) => (v, stack),
-                _ => panic!("stuck: DbOpen expected a first argument")
-              }}; 
-            let (arg, stack) = {
-              let (fr, stack) = list_pop(stack);              
-              match fr {
-                Frame::App(v) => (v, stack),
-                _ => panic!("stuck: DbOpen expected a second argument")
-              }}; 
-            let (arg, stack) = {
-              let (fr, stack) = list_pop(stack);              
-              match fr {
-                Frame::App(v) => (v, stack),
-                _ => panic!("stuck: DbOpen expected a third argument")
-              }}; 
-            let (arg, stack) = {
-              let (fr, stack) = list_pop(stack);              
-              match fr {
-                Frame::App(v) => (v, stack),
-                _ => panic!("stuck: DbOpen expected a forth argument")
-              }}; 
-            // TODO: Create/Open a database here!
-            State{stack:stack, pexp:PExp::Ret(ounit!()), ..st}
+          Prim::DbFilter(v1, v2) => {
+            // TODO: XXX
+            State{pexp:PExp::Ret(ounit!()), ..st}
           }
-          _ => unimplemented!()
+          Prim::DbJoin(v1, v2, v3, v4) => {
+            // TODO:
+            State{pexp:PExp::Ret(ounit!()), ..st}
+          }
         }
       }
-      PExp::Ann(e,_) => { State{pexp:*e, ..st} }
+      PExp::Ann(e,_) => { State{pexp:*e, ..st} } // TODO: Check the annotation?
       PExp::App(e, v) => {
         let stack = list_push(st.stack, Frame::App(close_val(&st.env, v)));
         State{stack:stack, pexp:*e.pexp, ..st}
@@ -782,28 +992,60 @@ fn test_store() {
 }
 
 #[test]
-fn test_listing_1() {
-  listing_1()
+fn test_listing_1_ver_a() { listing_1_ver_a() }
+
+#[test]
+fn test_listing_1_ver_b() { listing_1_ver_b() }
+
+fn listing_1_ver_a() {
+  let vty_authbks_us : refl::VTyp = { 
+    let dict : refl::Dict = map_empty();
+    let dict = map_update( dict, ostr!("name"),        refl::VTyp::Str ) ;
+    let dict = map_update( dict, ostr!("author"),      refl::VTyp::Str ) ;
+    let dict = map_update( dict, ostr!("citizenship"), refl::VTyp::Str ) ;
+    refl::VTyp::Db( Box::new(refl::VTyp::Dict( Box::new( dict ) ) ) ) } ;
+  
+  let example : obj::Exp =
+    olet!{ authors    = oopendb!( ostr!("authors.csv") ),
+           authorsUS  = ofilterdb!(
+             ovar!(authors),
+             othunk![ olam!(author.
+                            olet!{c = oproj!(ovar!(author), ostr!("citizenship")) ;
+                                  oeq!(ovar!(c), ostr!("US"))}
+             )]),
+           books      = oopendb!( ostr!("books.csv") ),
+           authbksUS  = ojoindb!( ovar!(authorsUS), ostr!("name"),
+                                  ovar!(books),     ostr!("author") )
+           ;
+           ohalt!()
+    };
+  let st = initial_state(*example.pexp);
+  drop(eval(st));
 }
 
-fn listing_1() {
+fn listing_1_ver_b() {
+  let vty_authbks_us : refl::VTyp = { 
+    let dict : refl::Dict = map_empty();
+    let dict = map_update( dict, ostr!("name"),        refl::VTyp::Str ) ;
+    let dict = map_update( dict, ostr!("author"),      refl::VTyp::Str ) ;
+    let dict = map_update( dict, ostr!("citizenship"), refl::VTyp::Str ) ;
+    refl::VTyp::Db( Box::new(refl::VTyp::Dict( Box::new( dict ) ) ) ) } ;
+  
   let example : obj::Exp =
-    olet!{ authors   = oapp!(ovarf!(openDb), ostr!("authors.csv")),
-           authorsUS = oapp!(ovarf!(filterDb), ovar!(authors),
-                             othunk![ olam!(author.
-                                            olet!{c = oproj!(ovar!(author), ostr!("citizenship")) ;
-                                                  oapp!(ovarf!(eq), ovar!(c), ostr!("US"))}
-                                            )]
-                             ),
-           books     = oapp!(ovarf!(openDb), ostr!("books.csv")),
-           authbksUS = oapp!(ovarf!(joinDb),
-                             ovar!(authorsUS),
-                             othunk![ olam!(author. oproj!(ovar!(author), ostr!("name"))) ],
-                             ovar!(books),
-                             othunk![ olam!(book. oproj!(ovar!(book), ostr!("author"))) ]
-                             )
+    olet!{ authors    = oopendb!(ostr!("authors.csv")),
+           authorsUS  = ofilterdb!(
+             ovar!(authors),
+             othunk![ olam!(author.
+                            olet!{c = oproj!(ovar!(author), ostr!("citizenship")) ;
+                                  oeq!(ovar!(c), ostr!("US"))}
+             )]),
+           books      = oopendb!(ostr!("books.csv")),
+           authbksUS  = ojoindb!( ovar!(authorsUS), ostr!("name"),
+                                  ovar!(books),     ostr!("author") ),
+           authbksUS2 = oann!( oret!(ovar!(authbksUS)),
+                              ?: refl::CTyp::F(Box::new(vty_authbks_us)) ) // Check that authbksUS has a particular (database) type
            ;
-           ovarf!(halt)
+           ohalt!()
     };
   let st = initial_state(*example.pexp);
   drop(eval(st));
@@ -811,5 +1053,5 @@ fn listing_1() {
 
 fn main() {
   //use obj::*;
-  listing_1()
+  listing_1_ver_a()
 }
