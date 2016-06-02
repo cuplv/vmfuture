@@ -373,7 +373,23 @@ pub fn vtyp_consis(vtyp1:refl::VTyp, vtyp2:refl::VTyp) -> bool {
     (Num, Num) => true,
     (Str, Str) => true,
     (Bool,Bool) => true,
-    (Dict(d1), Dict(d2)) => true, // XXX sort fields?
+    (Dict(d1), Dict(d2)) => {
+      map_fold(*d1.clone(), true, 
+               Rc::new(|v1, a1, ok:bool| 
+                       if !ok { false } else { 
+                         match map_find(&*d2, &v1) {
+                           None     => false,
+                           Some(a2) => vtyp_consis(a1, a2),                             
+                         }}))
+        &&
+        map_fold(*d2, true, 
+                 Rc::new(|v2, a2, ok:bool| 
+                         if !ok { false } else { 
+                           match map_find(&*d1, &v2) {
+                             None     => false,
+                             Some(a1) => vtyp_consis(a1, a2),
+                           }}))        
+    },
     (Db(vt1),  Db(vt2))  => vtyp_consis(*vt1, *vt2),
     (Ref(vt1), Ref(vt2)) => vtyp_consis(*vt1, *vt2),
     (U(c1),    U(c2))    => ctyp_consis(*c1, *c2),
@@ -603,7 +619,7 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
           // Q: What's the right relation to enforce here?
           if ctyp_consis(c.clone(), c2.clone()) { Some(e) }
           else { 
-            println!("subsumption failed:\n\t{:?}\n <not-consis>\t{:?}", c, c2);
+            panic!("subsumption failed:\n\t{:?}\n <not-consis>\t{:?}", c, c2);
             None 
           }
         }
@@ -669,7 +685,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
     PExp::Ann(e, et) => {
       match chk_pexp(store, tenv, *e, et.clone()) {
         None    => None,
-        Some(e) => Some((et, e))
+        Some(e) => Some((et.clone(), PExp::Ann(Box::new(e), et)))
       }
     }
     PExp::Prim(Prim::Halt) => { 
@@ -734,23 +750,23 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
                         Some(( f_db, PExp::Prim(Prim::DbJoin(v1, v2, v3, v4)) ))
                       }
                       else { 
-                        panic!("{:?} {:?}", a12, a24);
+                        println!("{:?}\n\t<not-consis> {:?}", a12, a24);
                         None 
                       }
                     },
                     finds => {
-                      panic!("one or more `map_find`s failed: {:?}", finds);
+                      println!("one or more `map_find`s failed on dictionary types: {:?}", finds);
                       None},
                   }
                 },               
                 _ => {
-                  panic!("joinDb with non-dicts: {:?}\n{:?}", a, b);
+                  println!("joinDb with non-dict databases: {:?}\n{:?}", a, b);
                   None
                 },
               }
             },
             _ => {
-              panic!("{:?} {:?}", v1t, v3t);
+              println!("joinDb with non databases: {:?}\n{:?}", v1t, v3t);
               None
             },
           }
@@ -1019,7 +1035,6 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
               },
               _ => panic!("stuck: dont know how to open that database")
             };
-            // TODO: XXX: Return a database here! (either author or book)
             State{pexp:PExp::Ret(db), ..st}
           }
           Prim::DbFilter(v1, v2) => {
@@ -1033,15 +1048,12 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
             let v2 = close_val(&st.env, v2);
             let v3 = close_val(&st.env, v3);
             let v4 = close_val(&st.env, v4);
-            match (*v1.pval, *v3.pval) {
+            match (*v1.clone().pval, *v3.pval) {
               (PVal::Db(db1), PVal::Db(db3)) => {
-                panic!("TODO: implement DbJoin!")
+                State{pexp:PExp::Ret(v1), ..st}
               }
               _ => panic!("stuck: cannot join non-databases")
             }            
-
-            // TODO:
-            State{pexp:PExp::Ret(ounit!()), ..st}
           }
         }
       }
@@ -1160,13 +1172,6 @@ fn test_listing_1_ver_a() { listing_1_ver_a() }
 fn test_listing_1_ver_b() { listing_1_ver_b() }
 
 fn listing_1_ver_a() {
-  let vty_authbks_us : refl::VTyp = { 
-    let dict : refl::Dict = map_empty();
-    let dict = map_update( dict, ostr!("name"),        refl::VTyp::Str ) ;
-    let dict = map_update( dict, ostr!("author"),      refl::VTyp::Str ) ;
-    let dict = map_update( dict, ostr!("citizenship"), refl::VTyp::Str ) ;
-    refl::VTyp::Db( Box::new(refl::VTyp::Dict( Box::new( dict ) ) ) ) } ;
-  
   let example : obj::Exp =
     olet!{ authors    = oopendb!( ostr!("authors.csv") ),
            authorsUS  = ofilterdb!(
