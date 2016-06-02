@@ -187,47 +187,30 @@ macro_rules! ounit {
 
 #[macro_export]
 macro_rules! odb {
-  [ ] => {{
-    let pval = obj::PVal::Db( list_nil() ) ;
-    obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}  }};
-  ( $val:expr ;; $db:expr ) => {{
-    match *($db).pval {
-      obj::PVal::Db( db ) => {
-        obj::Val{pval:Box::new(obj::PVal::Db( list_cons( $val, db ) )),
-                 vann:refl::VTyp::Top}
-      },
-      pv => panic!("{:?}", pv)
-    }
-  }};
-  [ $val:expr , $( $vals:expr ),* ] => {{
-    odb!( $val ;; odb![  ] )
+  [ $( $vals:expr ),* ] => {{
+    let v = vec![ $( NameElse::Else( ( $vals ) ) ),* ];
+    let l = list_of_vec( &v );
+    let pval = obj::PVal::Db( l );
+    obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}
   }}
 }
 
 #[macro_export]
 macro_rules! odict {
+  ( $val:expr ) => {{
+    let pval = obj::PVal::Dict( $val ) ;
+    obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}  
+  }};  
   [ ] => {{
-    let pval = obj::PVal::Dict( map_empty() ) ;
+    let pval = obj::PVal::Dict( list_nil() ) ;
+    obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}  
+  }};  
+  [ $( $val1:expr => $val2:expr ),* ] => {{
+    let v = vec![ $( NameElse::Else( ( $val1, $val2 ) ) ),* ];
+    let l = list_of_vec( &v );
+    let pval = obj::PVal::Dict( l );
     obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}
-  }}
-  ;
-  ( $val1:expr => $val2:expr , $val3:expr ) => {{
-    match *($val3).pval {
-      PVal::Dict( dict ) => {
-        let dict = map_update( dict, $val1, $val2 );
-        let pval = obj::PVal::Dict( dict );
-        obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}
-      }
-      _ => unreachable!()        
-    }
   }};
-  [ $val1:expr => $val2:expr , $( $val3:expr => $val4:expr ),* ] => {{
-    odict!( $val1 => $val2, odict![ $( $val3 => $val4 ),* ] );
-  }};
-  ( $dict:expr ) => {{
-    let pval = obj::PVal::Dict( $dict );
-    obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}
-  }}
 }
 
 #[macro_export]
@@ -616,7 +599,8 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
       match syn_pexp(store, tenv, e) {
         None => None,
         Some((c2, e)) => {
-          // XXX: Subsume rule
+          // XXX: Subsume rule: 
+          // Q: What's the right relation to enforce here?
           if ctyp_consis(c.clone(), c2.clone()) { Some(e) }
           else { 
             println!("subsumption failed:\n\t{:?}\n <not-consis>\t{:?}", c, c2);
@@ -977,8 +961,18 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
             State{pexp:PExp::Ret(ounit!()), ..st}
           }
           Prim::DbOpen(v) => {
-            let authors_csv = odb![ ostr!("a"), ostr!("b"), ostr!("c") ];
-            let books_csv = odb![ ];            
+            let auth1 = odict![ ostr!("name")        => ostr!("name1"),
+                                ostr!("citizenship") => ostr!("US")
+            ];
+            let auth2 = odict![ ostr!("name")        => ostr!("name2"),
+                                ostr!("citizenship") => ostr!("not-US")
+            ];
+            let auth3 = odict![ ostr!("name")        => ostr!("name3"),
+                                ostr!("citizenship") => ostr!("US")
+            ];
+            let authors_csv = odb![ auth1, auth2, auth3 ];
+            //let authors_csv = odb![ d ];
+            //let books_csv = odb![ ];
             //   odb![ odict![ ostr!("name") => ostr!("name1"), ostr!("citizenship") => ostr!("US") ],
             //         odict![ ostr!("name") => ostr!("name2"), ostr!("citizenship") => ostr!("not US") ],
             //         odict![ ostr!("name") => ostr!("name3"), ostr!("citizenship") => ostr!("US") ] 
@@ -991,7 +985,7 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
             let db = match *close_val(&st.env, v).pval {
               PVal::Str(s) => {
                 if      s == "authors.csv" { authors_csv }
-                else if s == "books.csv"   { books_csv   }
+                else if s == "books.csv"   { panic!("") }
                 else {  panic!("stuck: don't know that database") }
               },
               _ => panic!("stuck: dont know how to open that database")
