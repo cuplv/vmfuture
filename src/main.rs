@@ -609,7 +609,7 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
       }
     },
     // For other forms: 
-    // Do synthesis and confirm that types match:
+    // Do synthesis and confirm that types "match", using some equiv relation:
     (c, e) => {
       match syn_pexp(store, tenv, e) {
         None => None,
@@ -626,46 +626,6 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
     }
   }
 }
-
-  //   (c,              PExp::Force(v))     => chk_value(store, tenv, v, VTyp::U(Box::new(c))),
-  //   (CTyp::F(a),     PExp::Ret(v))       => chk_value(store, tenv, v, *a),
-  //   (CTyp::Arr(a,c), PExp::Lam(x,e))     => { let tenv = map_update(tenv, x, *a);
-  //                                             chk_exp(store, tenv, e, *c)
-  //   },
-  //   (c,              PExp::App(e,v))     => { match syn_exp(store, tenv.clone(), e) 
-  //                                             {
-  //                                               Some(CTyp::Arr(a, c)) => chk_value(store, tenv, v, *a),
-  //                                               _ => false,
-  //                                             }
-  //   },
-  //   (CTyp::F(a),     PExp::Proj(v1, v2)) => { match syn_value(store, tenv.clone(), v1) 
-  //                                               {
-  //                                                 Some(VTyp::Dict(delta)) => { chk_value(store, tenv.clone(), v2, *a) },
-  //                                                 _ => false,
-  //                                               }
-  //   },
-  //   (c1,             PExp::Ann(e, c2))   => (c1 == c2),
-  //   (CTyp::F(a),     PExp::Ref(v))       => chk_value(store, tenv, v, *a),
-  //   (CTyp::F(a),     PExp::Get(v))       => chk_value(store, tenv, v, VTyp::Ref(a)),
-  //   (CTyp::F(a),     PExp::Set(v1,v2))   => { match (syn_value(store, tenv.clone(), v1),
-  //                                                    syn_value(store, tenv,         v2)) 
-  //                                             {
-  //                                               (Some(VTyp::Ref(a1)), Some(a2)) => { *a1 == a2 },
-  //                                               _ => false,
-  //                                             }
-  //   },
-  //   (c,              PExp::Let(x,e1,e2)) => { match syn_exp(store, tenv.clone(), e1) 
-  //                                             {
-  //                                               Some(CTyp::F(a)) => {
-  //                                                 let tenv = map_update(tenv, x, *a);
-  //                                                 chk_exp(store, tenv, e2, c)
-  //                                               },
-  //                                               _ => false,
-  //                                             }
-  //   }
-  //   _ => panic!(""),
-  // }
-
 
 pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(refl::CTyp, obj::PExp)> {
   use obj::PExp;
@@ -841,7 +801,6 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
           None
         },
       }
-
     }
     pe => panic!("syn_pexp {:?}", pe)
   }
@@ -956,21 +915,12 @@ pub fn close_val(env:&obj::Env, v:obj::Val) -> obj::Val {
 
 pub fn initial_state(e:obj::PExp) -> obj::State {
   use adapton::collections::*;
-
-  let env : obj::Env = map_empty();
-  //let env = map_update(env, "halt".to_string(),     oprim!(obj::Prim::Halt));
-  //let env = map_update(env, "openDb".to_string(),   oprim!(obj::Prim::DbOpen));
-  //let env = map_update(env, "filterDb".to_string(), oprim!(obj::Prim::DbFilter));
-  //let env = map_update(env, "joinDb".to_string(),   oprim!(obj::Prim::DbJoin));
-
   obj::State{store:map_empty(),
              nloc: 0,
-             stack:List::Nil,
-             env:  env,
+             stack:list_nil(),
+             env:  map_empty(),
              pexp: e}
 }
-
-
 
 pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
   use obj::*;
@@ -1051,6 +1001,7 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
             let v4 = close_val(&st.env, v4);
             match (*v1.clone().pval, *v3.pval) {
               (PVal::Db(db1), PVal::Db(db3)) => {
+                // XXX: TODO: Actually join the databases!
                 State{pexp:PExp::Ret(v1), ..st}
               }
               _ => panic!("stuck: cannot join non-databases")
