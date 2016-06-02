@@ -133,6 +133,7 @@ pub mod obj {
     OpenThunk(Exp),
     Thunk(Env,Exp),
     Dict(Dict),
+    Db(Db),
     Num(isize),
     Str(String),
     Loc(Loc),
@@ -145,6 +146,7 @@ pub mod obj {
     pub vann:super::refl::VAnn,
   }
   pub type Dict = List<(Val,Val)>;
+  pub type Db   = List<Val>;
   //pub type Env  = List<(Var,Val)>;
   //pub type Dict = HashMap<Val,Val>;
   //pub type Env  = HashMap<Var,Val>;
@@ -184,7 +186,44 @@ macro_rules! ounit {
 }
 
 #[macro_export]
+macro_rules! odb {
+  [ ] => {{
+    let pval = obj::PVal::Db( list_nil() ) ;
+    obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}
+  }};
+  ( $val1:expr, $vals:expr ) => {{
+    match *($vals).pval {
+      obj::PVal::Db( db ) => {
+        obj::PVal::Db( list_cons( $val1, db ) )
+      },
+      _ => unreachable!()
+    }
+  }};
+  [ $val1:expr , $( $vals:expr ),* ] => {{
+    odb!( $val1, odb![ $( $vals ),* ] )
+  }}
+}
+
+#[macro_export]
 macro_rules! odict {
+  [ ] => {{
+    let pval = obj::PVal::Dict( map_empty() ) ;
+    obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}
+  }}
+  ;
+  ( $val1:expr => $val2:expr , $val3:expr ) => {{
+    match *($val3).pval {
+      PVal::Dict( dict ) => {
+        let dict = map_update( dict, $val1, $val2 );
+        let pval = obj::PVal::Dict( dict );
+        obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}
+      }
+      _ => unreachable!()        
+    }
+  }};
+  [ $val1:expr => $val2:expr , $( $val3:expr => $val4:expr ),* ] => {{
+    odict!( $val1 => $val2, odict![ $( $val3 => $val4 ),* ] );
+  }};
   ( $dict:expr ) => {{
     let pval = obj::PVal::Dict( $dict );
     obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}
@@ -414,6 +453,37 @@ pub fn syn_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal) -> Option
         Some((v.vann, PVal::Loc(l)))
       }
     }}
+    PVal::Db(db) => {
+      if list_is_empty(&db) {
+        let t = VTyp::Db(Box::new(VTyp::Dict(Box::new(list_nil()))));
+        Some((t, PVal::Db(list_nil())))
+      } else {
+        let (d,db) = list_pop(db) ;
+        match syn_value(store, tenv.clone(), d) {
+          None => None,
+          Some((dt, d)) => {
+            let db_out = list_cons(d, list_nil());
+            let out = list_fold(db, Some((dt, db_out)), Rc::new(|d,out|{
+              match out {
+                None => None,
+                Some((dt, db)) => 
+                  match syn_value(store, tenv.clone(), d) {
+                    None => None,
+                    Some((dt2, d)) => { 
+                      if dt == dt2 { Some((dt, list_cons(d, db))) }
+                      else { None }
+                    }
+                  }
+              }
+            }));
+            match out {
+              None           => None,
+              Some((dt, db)) => Some((VTyp::Db(Box::new(dt)), PVal::Db(db)))
+            }
+          }
+        }
+      }
+    }
     PVal::Dict(d) => { 
       let ds = {
         let d0  : obj::Dict  = map_empty() ;
@@ -618,14 +688,14 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
           let f_bool = CTyp::F( Box::new(VTyp::Bool ) );
           let f_db   = CTyp::F( Box::new(VTyp::Db(a.clone())) ) ;
           match chk_value( store, tenv, v2, 
-                           VTyp::U(Box::new(CTyp::Arr(a, Box::new( f_bool ) ))) ) {
+                           VTyp::U(Box::new(CTyp::Arr(a, Box::new( f_bool ) ))) ) {            
             None => None,
             Some(v2) => {
               Some(( f_db, PExp::Prim(Prim::DbFilter(v1, v2)) ))
             }
           }
         },
-        _ => None,
+        x => { println!("DbFilter: first param should be a database, not {:?}", x) ; None },
       }
     },
     PExp::Prim(Prim::DbJoin(v1, v2, v3, v4)) => {
@@ -703,7 +773,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
             None => None,
             Some((v2t, v2)) => {
               match map_find(&*delta, &v2) {
-                None      => None,
+                None      => { println!("syn_pvalue: Proj: field {:?}\n\tnot in type {:?}", v2, delta); None},
                 Some(v3t) => Some((CTyp::F(Box::new(v3t)), // precise
                                    PExp::Proj(v1, v2)))                  
               }
@@ -798,6 +868,11 @@ pub fn is_final(exp:&obj::PExp) -> bool {
 pub fn close_pval(env:&obj::Env, v:obj::PVal) -> obj::PVal {
   use obj::PVal::*;
   match v {
+    Db(db0) => {
+      let db : obj::Db = list_nil();
+      let db = list_fold(db0, db, Rc::new(|v,db| list_cons(close_val(env, v), db)));
+      Db(db)
+    }
     OpenThunk(e)  => Thunk(env.clone(), e),
     Thunk(env2,e) => Thunk(env2,e),
     Dict(List::Nil) => Dict(List::Nil),
@@ -843,7 +918,7 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
   //use obj::PExp::*;
   use adapton::collections::*;  
   let st = match refl::do_pass (st.clone()) {
-    None     => { println!("! reflective layer chose to halt execution."); st }
+    None     => { println!("!!!\t--/--> reflective layer chose to halt execution."); st }
     Some(st) => st,
   };  
   if is_final(&st.pexp) {
@@ -870,12 +945,33 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
             State{pexp:PExp::Ret(ounit!()), ..st}
           }
           Prim::DbOpen(v) => {
+            let authors_csv = odb![ ];
+            let books_csv = odb![ ];            
+            //   odb![ odict![ ostr!("name") => ostr!("name1"), ostr!("citizenship") => ostr!("US") ],
+            //         odict![ ostr!("name") => ostr!("name2"), ostr!("citizenship") => ostr!("not US") ],
+            //         odict![ ostr!("name") => ostr!("name3"), ostr!("citizenship") => ostr!("US") ] 
+            //   ];
+            // let books_csv = 
+            //   odb![ odict![ ostr!("author") => ostr!("name1"), ostr!("title") => ostr!("title1") ],
+            //         odict![ ostr!("author") => ostr!("name2"), ostr!("title") => ostr!("title2") ],
+            //         odict![ ostr!("author") => ostr!("name3"), ostr!("title") => ostr!("title3") ] 
+            //   ];            
+            let db = match *close_val(&st.env, v).pval {
+              PVal::Str(s) => {
+                if      s == "authors.csv" { authors_csv }
+                else if s == "books.csv"   { books_csv   }
+                else {  panic!("stuck: don't know that database") }
+              },
+              _ => panic!("stuck: dont know how to open that database")
+            };
             // TODO: XXX: Return a database here! (either author or book)
-            State{pexp:PExp::Ret(ounit!()), ..st}
+            State{pexp:PExp::Ret(db), ..st}
           }
           Prim::DbFilter(v1, v2) => {
-            // TODO: XXX
-            State{pexp:PExp::Ret(ounit!()), ..st}
+            let v1 = close_val(&st.env, v1);
+            let v2 = close_val(&st.env, v2);
+            // XXX: TODO: Actually do the filtering step
+            State{pexp:PExp::Ret(v1), ..st}
           }
           Prim::DbJoin(v1, v2, v3, v4) => {
             // TODO:
