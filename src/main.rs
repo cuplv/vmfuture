@@ -189,18 +189,18 @@ macro_rules! ounit {
 macro_rules! odb {
   [ ] => {{
     let pval = obj::PVal::Db( list_nil() ) ;
-    obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}
-  }};
-  ( $val1:expr, $vals:expr ) => {{
-    match *($vals).pval {
+    obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}  }};
+  ( $val:expr ;; $db:expr ) => {{
+    match *($db).pval {
       obj::PVal::Db( db ) => {
-        obj::PVal::Db( list_cons( $val1, db ) )
+        obj::Val{pval:Box::new(obj::PVal::Db( list_cons( $val, db ) )),
+                 vann:refl::VTyp::Top}
       },
-      _ => unreachable!()
+      pv => panic!("{:?}", pv)
     }
   }};
-  [ $val1:expr , $( $vals:expr ),* ] => {{
-    odb!( $val1, odb![ $( $vals ),* ] )
+  [ $val:expr , $( $vals:expr ),* ] => {{
+    odb!( $val ;; odb![  ] )
   }}
 }
 
@@ -379,6 +379,34 @@ macro_rules! oret {
     let pexp = obj::PExp::Ret( $val );
     obj::Exp{pexp:Box::new(pexp), cann:refl::CTyp::Top}
   }}
+}
+
+
+pub fn vtyp_consis(vtyp1:refl::VTyp, vtyp2:refl::VTyp) -> bool {
+  use refl::VTyp::*;
+  match (vtyp1, vtyp2) {
+    (Top, _) => true,
+    (_, Top) => true,
+    (Num, Num) => true,
+    (Str, Str) => true,
+    (Bool,Bool) => true,
+    (Dict(d1), Dict(d2)) => true, // XXX sort fields?
+    (Db(vt1),  Db(vt2))  => vtyp_consis(*vt1, *vt2),
+    (Ref(vt1), Ref(vt2)) => vtyp_consis(*vt1, *vt2),
+    (U(c1),    U(c2))    => ctyp_consis(*c1, *c2),
+    _ => false,
+  }
+}
+
+pub fn ctyp_consis(ctyp1:refl::CTyp, ctyp2:refl::CTyp) -> bool {
+  use refl::CTyp::*;
+  match (ctyp1, ctyp2) {
+    (Top, _  ) => true,
+    (_  , Top) => true,
+    (F(a), F(b)) => vtyp_consis(*a, *b),
+    (Arr(a,c), Arr(b,d)) => vtyp_consis(*a, *b) && ctyp_consis(*c,*d),
+    _ => false,      
+  }  
 }
 
 pub fn syn_tenv(store:&obj::Store, env:obj::Env) -> Option<(refl::TEnv, obj::Env)> {
@@ -589,9 +617,9 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
         None => None,
         Some((c2, e)) => {
           // XXX: Subsume rule
-          if c == c2 { Some(e) }
+          if ctyp_consis(c.clone(), c2.clone()) { Some(e) }
           else { 
-            println!("subsumption failed:\n\t{:?}\n <>\t{:?}", c, c2);
+            println!("subsumption failed:\n\t{:?}\n <not-consis>\t{:?}", c, c2);
             None 
           }
         }
@@ -646,6 +674,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
   use refl::CTyp;
   use refl::VTyp;
   println!("-- syn_pexp {:?}", exp);
+  println!("   tenv: {:?}", tenv);
   match exp {
     PExp::Ret(v) => { 
     match syn_value(store, tenv, v) {
@@ -780,7 +809,10 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
             }
           }
         },
-        _ => None,
+        Some((vt, v)) => {
+          println!("expected a record, instead found {:?} => {:?}", v, vt);
+          None
+        },
       }
 
     }
@@ -945,7 +977,7 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
             State{pexp:PExp::Ret(ounit!()), ..st}
           }
           Prim::DbOpen(v) => {
-            let authors_csv = odb![ ];
+            let authors_csv = odb![ ostr!("a"), ostr!("b"), ostr!("c") ];
             let books_csv = odb![ ];            
             //   odb![ odict![ ostr!("name") => ostr!("name1"), ostr!("citizenship") => ostr!("US") ],
             //         odict![ ostr!("name") => ostr!("name2"), ostr!("citizenship") => ostr!("not US") ],
@@ -974,6 +1006,17 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
             State{pexp:PExp::Ret(v1), ..st}
           }
           Prim::DbJoin(v1, v2, v3, v4) => {
+            let v1 = close_val(&st.env, v1);
+            let v2 = close_val(&st.env, v2);
+            let v3 = close_val(&st.env, v3);
+            let v4 = close_val(&st.env, v4);
+            match (*v1.pval, *v3.pval) {
+              (PVal::Db(db1), PVal::Db(db3)) => {
+                panic!("")
+              }
+              _ => panic!("stuck: cannot join non-databases")
+            }            
+
             // TODO:
             State{pexp:PExp::Ret(ounit!()), ..st}
           }
@@ -1139,7 +1182,7 @@ fn listing_1_ver_b() {
            authbksUS  = ojoindb!( ovar!(authorsUS), ostr!("name"),
                                   ovar!(books),     ostr!("author") ),
            authbksUS2 = oann!( oret!(ovar!(authbksUS)),
-                              ?: refl::CTyp::F(Box::new(vty_authbks_us)) ) // Check that authbksUS has a particular (database) type
+                               ?: refl::CTyp::F(Box::new(vty_authbks_us)) ) // Check that authbksUS has a particular (database) type
            ;
            ohalt!()
     };
