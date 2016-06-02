@@ -165,7 +165,7 @@ macro_rules! ovar {
 macro_rules! ostr {
   ( $str:expr ) => {{
     let pval = obj::PVal::Str( $str.to_string() );
-    obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}
+    obj::Val{pval:Box::new(pval), vann:refl::VTyp::Str}
   }}
 }
 
@@ -364,7 +364,6 @@ macro_rules! oret {
   }}
 }
 
-
 pub fn vtyp_consis(vtyp1:refl::VTyp, vtyp2:refl::VTyp) -> bool {
   use refl::VTyp::*;
   match (vtyp1, vtyp2) {
@@ -375,10 +374,10 @@ pub fn vtyp_consis(vtyp1:refl::VTyp, vtyp2:refl::VTyp) -> bool {
     (Bool,Bool) => true,
     (Dict(d1), Dict(d2)) => {
       map_fold(*d1.clone(), true, 
-               Rc::new(|v1, a1, ok:bool| 
-                       if !ok { false } else { 
+               Rc::new(|v1:obj::Val, a1, ok:bool| 
+                       if !ok { false } else {
                          match map_find(&*d2, &v1) {
-                           None     => false,
+                           None     => { panic!("d2:{:?}\ndoes not map v1:{:?}", d2, v1) ; false},
                            Some(a2) => vtyp_consis(a1, a2),                             
                          }}))
         &&
@@ -386,7 +385,7 @@ pub fn vtyp_consis(vtyp1:refl::VTyp, vtyp2:refl::VTyp) -> bool {
                  Rc::new(|v2, a2, ok:bool| 
                          if !ok { false } else { 
                            match map_find(&*d1, &v2) {
-                             None     => false,
+                             None     => { panic!("{:?} {:?}", d1, v2) ; false},
                              Some(a1) => vtyp_consis(a1, a2),
                            }}))        
     },
@@ -522,7 +521,7 @@ pub fn syn_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal) -> Option
                      Some((dt, d)) => {
                        let k : obj::Val = k ;
                        let v : obj::Val = v ;
-                       match ( syn_value(store, tenv.clone(), k),
+                       match ( syn_value(store, tenv.clone(), k.clone()),
                                syn_value(store, tenv.clone(), v) 
                        ) {
                          (Some((kt, k)), Some((vt, v))) => { Some(
@@ -823,6 +822,8 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
             }
           }          
         },
+        // TODO: Add case where value of v1 is unknown (could be a variable)
+        //
         Some((VTyp::Dict(delta), v1)) => {
           match syn_value(store, tenv, v2) {
             None => None,
@@ -976,7 +977,7 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
   //use obj::PExp::*;
   use adapton::collections::*;  
   let st = match refl::do_pass (st.clone()) {
-    None     => { println!("!!!\t--/--> reflective layer chose to halt execution."); st }
+    None     => { panic!("!!!\t--/--> reflective layer chose to halt execution."); st }
     Some(st) => st,
   };  
   if is_final(&st.pexp) {
@@ -1196,6 +1197,7 @@ fn listing_1_ver_b() {
     let dict = map_update( dict, ostr!("name"),        refl::VTyp::Str ) ;
     let dict = map_update( dict, ostr!("author"),      refl::VTyp::Str ) ;
     let dict = map_update( dict, ostr!("citizenship"), refl::VTyp::Str ) ;
+    let dict = map_update( dict, ostr!("title"),       refl::VTyp::Str ) ;
     refl::VTyp::Db( Box::new(refl::VTyp::Dict( Box::new( dict ) ) ) ) } ;
   
   let example : obj::Exp =
