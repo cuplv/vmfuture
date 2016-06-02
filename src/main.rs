@@ -187,9 +187,13 @@ macro_rules! ounit {
 
 #[macro_export]
 macro_rules! odb {
+  [[ $vals:expr ]] => {{
+    let pval = obj::PVal::Db( $vals );
+    obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}
+  }};
   [ $( $vals:expr ),* ] => {{
     let v = vec![ $( NameElse::Else( ( $vals ) ) ),* ];
-    let l = list_of_vec( &v );
+    let l : List<_> = list_of_vec( &v );
     let pval = obj::PVal::Db( l );
     obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}
   }}
@@ -197,7 +201,7 @@ macro_rules! odb {
 
 #[macro_export]
 macro_rules! odict {
-  ( $val:expr ) => {{
+  [[ $val:expr ]] => {{
     let pval = obj::PVal::Dict( $val ) ;
     obj::Val{pval:Box::new(pval), vann:refl::VTyp::Top}  
   }};  
@@ -1001,8 +1005,24 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
             let v4 = close_val(&st.env, v4);
             match (*v1.clone().pval, *v3.pval) {
               (PVal::Db(db1), PVal::Db(db3)) => {
-                // XXX: TODO: Actually join the databases!
-                State{pexp:PExp::Ret(v1), ..st}
+                let out : obj::Db = list_nil();
+                let out = 
+                  list_fold
+                  (db1, out, Rc::new(|r1:obj::Val,out|{
+                    list_fold
+                      (db3.clone(), out, Rc::new(|r3:obj::Val,out|{
+                        let r1 = match *r1.clone().pval { PVal::Dict(r) => r, _ => panic!( "db should contain dicts") } ;
+                        let r3 = match *r3.clone().pval { PVal::Dict(r) => r, _ => panic!( "db should contain dicts") } ;
+                        match (map_find(&r1, &v2), map_find(&r3, &v4)) {
+                          (Some(v1),Some(v3)) => {
+                            if v1 == v3 { list_cons(odict![[ list_append(r1, r3) ]], out) }
+                            else { out }
+                          },
+                          _ => out
+                        }
+                      }))
+                   })) ;
+                State{pexp:PExp::Ret(odb![[out]]), ..st}
               }
               _ => panic!("stuck: cannot join non-databases")
             }            
@@ -1074,7 +1094,7 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
         match *v1.pval {
           PVal::Dict(dict) => {
             let dict = <List<_> as MapIntro<_,_>>::update(dict, v2, v3);
-            State{pexp:PExp::Ret(odict!(dict)), ..st}
+            State{pexp:PExp::Ret(odict![[dict]]), ..st}
           }
           _ => panic!("stuck: dict-ext on a non-dictionary: {:?}", v1)
         }
