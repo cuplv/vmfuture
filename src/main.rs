@@ -377,7 +377,7 @@ pub fn vtyp_consis(vtyp1:refl::VTyp, vtyp2:refl::VTyp) -> bool {
                Rc::new(|v1:obj::Val, a1, ok:bool| 
                        if !ok { false } else {
                          match map_find(&*d2, &v1) {
-                           None     => { panic!("d2:{:?}\ndoes not map v1:{:?}", d2, v1) ; false},
+                           None     => { println!("d2:{:?}\ndoes not map v1:{:?}", d2, v1) ; false},
                            Some(a2) => vtyp_consis(a1, a2),                             
                          }}))
         &&
@@ -385,7 +385,7 @@ pub fn vtyp_consis(vtyp1:refl::VTyp, vtyp2:refl::VTyp) -> bool {
                  Rc::new(|v2, a2, ok:bool| 
                          if !ok { false } else { 
                            match map_find(&*d1, &v2) {
-                             None     => { panic!("{:?} {:?}", d1, v2) ; false},
+                             None     => { println!("{:?} {:?}", d1, v2) ; false},
                              Some(a1) => vtyp_consis(a1, a2),
                            }}))        
     },
@@ -618,7 +618,7 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
           // Q: What's the right relation to enforce here?
           if ctyp_consis(c.clone(), c2.clone()) { Some(e) }
           else { 
-            panic!("subsumption failed:\n\t{:?}\n <not-consis>\t{:?}", c, c2);
+            println!("subsumption failed:\n\t{:?}\n <not-consis>\t{:?}", c, c2);
             None 
           }
         }
