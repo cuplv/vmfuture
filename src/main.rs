@@ -718,15 +718,41 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
               syn_value(store, tenv.clone(), v4)) {
         ( Some((v1t, v1)), Some((v2t, v2)), 
           Some((v3t, v3)), Some((v4t, v4)) ) => {          
-          match(v1t, v3t) {
-            (VTyp::Db(ref a), VTyp::Db(ref b)) if **a == VTyp::Top && **b == VTyp::Top => {
+          match(v1t.clone(), v3t.clone()) {
+            (VTyp::Db(ref a), VTyp::Db(ref b)) if **a == VTyp::Top || **b == VTyp::Top => {
               let f_db = CTyp::F( Box::new(VTyp::Db( Box::new(VTyp::Top) )) ) ;
               Some(( f_db, PExp::Prim(Prim::DbJoin(v1, v2, v3, v4)) ))
             },
             (VTyp::Db(a), VTyp::Db(b)) => {
-              panic!("")
+              match (*a.clone(),*b.clone()) {
+                (VTyp::Dict(d1), VTyp::Dict(d2)) => {
+                  match (map_find(&*d1, &v2), map_find(&*d2, &v4)) {
+                    (Some(a12), Some(a24)) => {
+                      if vtyp_consis(a12.clone(), a24.clone()) {
+                        let dict = list_append( *d1, *d2 );
+                        let f_db = CTyp::F( Box::new(VTyp::Db( Box::new(VTyp::Dict( Box::new( dict ) ) ) )) ) ;                          
+                        Some(( f_db, PExp::Prim(Prim::DbJoin(v1, v2, v3, v4)) ))
+                      }
+                      else { 
+                        panic!("{:?} {:?}", a12, a24);
+                        None 
+                      }
+                    },
+                    finds => {
+                      panic!("one or more `map_find`s failed: {:?}", finds);
+                      None},
+                  }
+                },               
+                _ => {
+                  panic!("joinDb with non-dicts: {:?}\n{:?}", a, b);
+                  None
+                },
+              }
             },
-            _ => None,
+            _ => {
+              panic!("{:?} {:?}", v1t, v3t);
+              None
+            },
           }
         },
         _ => None,
@@ -961,31 +987,34 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
             State{pexp:PExp::Ret(ounit!()), ..st}
           }
           Prim::DbOpen(v) => {
-            let auth1 = odict![ ostr!("name")        => ostr!("name1"),
-                                ostr!("citizenship") => ostr!("US")
-            ];
-            let auth2 = odict![ ostr!("name")        => ostr!("name2"),
-                                ostr!("citizenship") => ostr!("not-US")
-            ];
-            let auth3 = odict![ ostr!("name")        => ostr!("name3"),
-                                ostr!("citizenship") => ostr!("US")
-            ];
-            let authors_csv = odb![ auth1, auth2, auth3 ];
-            //let authors_csv = odb![ d ];
-            //let books_csv = odb![ ];
-            //   odb![ odict![ ostr!("name") => ostr!("name1"), ostr!("citizenship") => ostr!("US") ],
-            //         odict![ ostr!("name") => ostr!("name2"), ostr!("citizenship") => ostr!("not US") ],
-            //         odict![ ostr!("name") => ostr!("name3"), ostr!("citizenship") => ostr!("US") ] 
-            //   ];
-            // let books_csv = 
-            //   odb![ odict![ ostr!("author") => ostr!("name1"), ostr!("title") => ostr!("title1") ],
-            //         odict![ ostr!("author") => ostr!("name2"), ostr!("title") => ostr!("title2") ],
-            //         odict![ ostr!("author") => ostr!("name3"), ostr!("title") => ostr!("title3") ] 
-            //   ];            
+            let authors_csv = {
+              let auth1 = odict![ ostr!("name")        => ostr!("name1"),
+                                  ostr!("citizenship") => ostr!("US")
+              ];
+              let auth2 = odict![ ostr!("name")        => ostr!("name2"),
+                                  ostr!("citizenship") => ostr!("not-US")
+              ];
+              let auth3 = odict![ ostr!("name")        => ostr!("name3"),
+                                  ostr!("citizenship") => ostr!("US")
+              ];
+              odb![ auth1, auth2, auth3 ]
+            };
+            let books_csv = {
+              let book1 = odict![ ostr!("author") => ostr!("name1"),
+                                  ostr!("title")  => ostr!("title1")
+              ];
+              let book2 = odict![ ostr!("author") => ostr!("name1"),
+                                  ostr!("title")  => ostr!("title1")
+              ];
+              let book3 = odict![ ostr!("author") => ostr!("name1"),
+                                  ostr!("title")  => ostr!("title1")
+              ];
+              odb![ book1, book2, book3 ]
+            };
             let db = match *close_val(&st.env, v).pval {
               PVal::Str(s) => {
                 if      s == "authors.csv" { authors_csv }
-                else if s == "books.csv"   { panic!("") }
+                else if s == "books.csv"   { books_csv }
                 else {  panic!("stuck: don't know that database") }
               },
               _ => panic!("stuck: dont know how to open that database")
@@ -1006,7 +1035,7 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
             let v4 = close_val(&st.env, v4);
             match (*v1.pval, *v3.pval) {
               (PVal::Db(db1), PVal::Db(db3)) => {
-                panic!("")
+                panic!("TODO: implement DbJoin!")
               }
               _ => panic!("stuck: cannot join non-databases")
             }            
