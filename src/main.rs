@@ -1009,7 +1009,7 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
           }
         }
       }
-      PExp::Ann(e,_) => { State{pexp:*e, ..st} } // TODO: Check the annotation?
+      PExp::Ann(e,_) => { State{pexp:*e, ..st} } // XXX: TODO: Actually check the annotation!
       PExp::App(e, v) => {
         let stack = list_push(st.stack, Frame::App(close_val(&st.env, v)));
         State{stack:stack, pexp:*e.pexp, ..st}
@@ -1163,7 +1163,8 @@ fn listing_1_ver_b() {
            authbksUS  = ojoindb!( ovar!(authorsUS), ostr!("name"),
                                   ovar!(books),     ostr!("author") ),
            authbksUS2 = oann!( oret!(ovar!(authbksUS)),
-                               ?: refl::CTyp::F(Box::new(vty_authbks_us)) ) // Check that authbksUS has a particular (database) type
+                               // Annotation checks that authbksUS has a particular (database) type:
+                               ?: refl::CTyp::F(Box::new(vty_authbks_us)) ) 
            ;
            ohalt!()
     };
