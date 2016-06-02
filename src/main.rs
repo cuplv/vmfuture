@@ -528,7 +528,7 @@ pub fn syn_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal) -> Option
                        match ( syn_value(store, tenv.clone(), k.clone()),
                                syn_value(store, tenv.clone(), v) 
                        ) {
-                         (Some((kt, k)), Some((vt, v))) => { Some(
+                         (Some((_kt, k)), Some((vt, v))) => { Some(
                            ( map_update(dt, k.clone(), vt),
                              map_update(d,  k,         v )
                            )
@@ -600,7 +600,7 @@ pub fn chk_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal, vtyp:refl
 }
 
 pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::CTyp) -> Option<obj::PExp> {
-  use refl::{VTyp,CTyp};
+  use refl::{CTyp};
   use obj::PExp;
   println!("-- chk_pexp {:?}\n <== {:?}", pexp, ctyp);
   match (ctyp, pexp) {    
@@ -657,7 +657,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
     PExp::Prim(Prim::Eq(v1, v2)) => {
       match (syn_value(store, tenv.clone(), v1),
              syn_value(store, tenv,         v2)) {
-        (Some((v1t, v1)), Some((v2t, v2))) => {
+        (Some((_v1t, v1)), Some((_v2t, v2))) => {
           Some((CTyp::F( Box::new( VTyp::Bool ) ),
                 PExp::Prim(Prim::Eq(v1, v2))))
         }
@@ -695,8 +695,8 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
               syn_value(store, tenv.clone(), v2),
               syn_value(store, tenv.clone(), v3),
               syn_value(store, tenv.clone(), v4)) {
-        ( Some((v1t, v1)), Some((v2t, v2)), 
-          Some((v3t, v3)), Some((v4t, v4)) ) => {          
+        ( Some((v1t, v1)), Some((_v2t, v2)), 
+          Some((v3t, v3)), Some((_v4t, v4)) ) => {          
           match(v1t.clone(), v3t.clone()) {
             (VTyp::Db(ref a), VTyp::Db(ref b)) if **a == VTyp::Top || **b == VTyp::Top => {
               let f_db = CTyp::F( Box::new(VTyp::Db( Box::new(VTyp::Top) )) ) ;
@@ -780,7 +780,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
         Some((VTyp::Top, v1)) => {
           match syn_value(store, tenv, v2) {
             None => None,
-            Some((v2t, v2)) => {
+            Some((_v2t, v2)) => {
               Some((CTyp::F(Box::new(VTyp::Top)), // imprecise
                     PExp::Proj(v1, v2)))                  
             }
@@ -791,7 +791,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
         Some((VTyp::Dict(delta), v1)) => {
           match syn_value(store, tenv, v2) {
             None => None,
-            Some((v2t, v2)) => {
+            Some((_v2t, v2)) => {
               match map_find(&*delta, &v2) {
                 None      => { println!("syn_pvalue: Proj: field {:?}\n\tnot in type {:?}", v2, delta); None},
                 Some(v3t) => Some((CTyp::F(Box::new(v3t)), // precise
@@ -931,7 +931,10 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
   //use obj::PExp::*;
   use adapton::collections::*;  
   let st = match refl::do_pass (st.clone()) {
-    None     => { panic!("!!!\t--/--> reflective layer chose to halt execution."); st }
+    None => { 
+      panic!("!!!\t--/--> reflective layer chose to halt execution."); 
+      //st 
+    }
     Some(st) => st,
   };  
   if is_final(&st.pexp) {
@@ -953,7 +956,7 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
       PExp::Prim(prim) => {
         match prim {
           Prim::Halt => { return Err(State{pexp:PExp::Ret(ounit!()), ..st}) }
-          Prim::Eq(v1, v2) => {
+          Prim::Eq(_v1, _v2) => {
             // TODO: 
             State{pexp:PExp::Ret(ounit!()), ..st}
           }
@@ -994,7 +997,7 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
           }
           Prim::DbFilter(v1, v2) => {
             let v1 = close_val(&st.env, v1);
-            let v2 = close_val(&st.env, v2);
+            let _v2 = close_val(&st.env, v2);
             // XXX: TODO: Actually do the filtering step
             State{pexp:PExp::Ret(v1), ..st}
           }
@@ -1121,7 +1124,8 @@ fn eval (st:obj::State) -> obj::State {
   }
 }
 
-#[test]
+//#[test]
+#[allow(dead_code)]
 fn test_store() {  
   let example : obj::Exp =
     olet!{ x  = oref!(ostr!("apple")),
