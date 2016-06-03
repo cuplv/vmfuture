@@ -1,0 +1,62 @@
+\section{VMF Semantics}
+
+\subsection{VMF Syntax \& Dynamics}
+
+\paragraph{Program syntax.}
+For economy of both implementation and reasoning, the syntax of VMF
+programs is directly insipired by that of the Call-by-Push-Value
+(CPBV) syntax and evaluation strategy~\cite{CBPV}.
+%
+CBPV is similar to CBV, except that unlike CBV, CBPV neatly separates
+the concept of a thunked computation from that of a lambda
+abstraction.
+%
+Like other administrative normal forms, CPBV also imposes a separation
+of values and computations, in terms of syntax and semantics.
+%
+Computations that eliminate values have value sub-terms.
+%
+In contrast to computation forms, value forms consist of (passive,
+non-doing) data types; specifically, here we consider variables
+(ranging over previously-defined values), primitives (viz., numbers
+and strings), records of values, store locations, open thunks that
+suspend a computation term as a value~($\ottkw{othunk} \, \ottnt{e}$) and thunks
+closed by an environment~($\ottkw{thunk} \, \rho \, \ottnt{e}$).
+
+Unlike values, computations consist of program terms that actively
+\emph{do things}, and for which the VM defines operational steps. For
+instance, field projection from a record value is a computation, since
+it eliminates a value (viz., the record that contains the projected
+field) and introduces a new one.
+%
+Though CBV treats lambdas as values, the distinctive quirk of CBPV is
+that function abstraction is a computation (not a value) and that it
+interacts with function applications via an ambient stack (hence,
+``call-by-\emph{push}-value''):
+%
+Function application~$\ottnt{e} \, \ottnt{v}$ uses a function abstraction by pushing
+an argument value~$v$ on this ambient stack and then running the
+function body~$e$.
+%
+Lambdas~$ \lambda  x .  \ottnt{e} $ abstract over a variable~$x$ by popping a value
+for~$x$ from this ambient stack.
+%
+Compared with CBV, the presence of this ambient stack streamlines the
+expression of currying.
+%
+Specifically, CBPV avoids the need for creating closures that
+represent the partially-applied lambdas in the curried series.
+%
+Below, we will augment these (standard) computations and values with
+computations over simple databases.
+
+\paragraph{VM State syntax.}
+
+\paragraph{VM Dynamics.}
+
+
+\section{Gradual Typing for Simple Databases}
+
+
+\paragraph{Library primitives: Syntax \& Dynamics.}
+

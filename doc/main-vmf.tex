@@ -1,0 +1,58 @@
+\documentclass[10pt]{sigplanconf}
+
+\usepackage{bec}
+\setboolean{showcomments}{true}
+\setboolean{showjedi}{false}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Macros
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newif\ifdraftfooter
+\draftfooterfalse
+
+\usepackage{graphicx}
+\usepackage{wrapfig}\setlength{\intextsep}{2pt}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{semantic}
+%%\usepackage{enumitem}
+\usepackage{times}
+\renewcommand{\ttdefault}{cmtt}
+
+%\newcommand{\code}[1]{\lstinline{#1}}
+
+\begin{document}
+
+\title{VMF: Definition and Pilot Casestudy}
+
+\authorinfo{Matthew A. Hammer \and Bor-Yuh Evan Chang}{University of Colorado Boulder}{emails}
+\authorinfo{David Van Horn}{}{}
+
+\maketitle
+
+\special{papersize=8.5in,11in}
+\setlength{\pdfpageheight}{\paperheight}
+\setlength{\pdfpagewidth}{\paperwidth}
+
+\conferenceinfo{CONF 'yy}{Month d--d, 20yy, City, ST, Country}
+\copyrightyear{20yy}
+\copyrightdata{978-1-nnnn-nnnn-n/yy/mm}
+\copyrightdoi{nnnnnnn.nnnnnnn}
+
+% Uncomment the publication rights you want to use.
+%\publicationrights{transferred}
+%\publicationrights{licensed}     % this is the default
+%\publicationrights{author-pays}
+
+\titlebanner{banner above paper title}        % These are ignored unless
+\preprintfooter{short description of paper}   % 'preprint' option specified.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\input{vmf-def}
+\input{sec-vmf}
+
+\end{document}

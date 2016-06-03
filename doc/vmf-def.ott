@@ -1,4 +1,4 @@
-embed {{ tex-preamble }}
+%% embed {{ tex-preamble }}
 
 metavar  var, x {{ tex x }}, y {{ tex y }}, z {{ tex z }}, f {{ tex f }}, g {{tex g }} ::= {{ com variables }}
 metavar  n, s, numeral ::= {{ com literal number }} {{ lex numeral }}

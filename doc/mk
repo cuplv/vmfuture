@@ -1,0 +1,7 @@
+#!/bin/sh
+ottfile=vmf-def.ott
+ott $ottfile -tex_wrap true -o vmf-def-full.tex
+pdflatex vmf-def-full
+ott $ottfile -tex_wrap false -o vmf-def.tex
+ott $ottfile -tex_filter sec-vmf.mng.tex sec-vmf.tex 
+pdflatex main-vmf
