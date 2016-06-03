@@ -24,7 +24,7 @@ fn test_store() {
     };
   let st = dynamics::initial_state(*example.pexp);
   let st = dynamics::eval(st);
-  let y2 = <List<_> as MapElim<_,_>>::find(&st.env, &"y2".to_string());
+  let y2 = map_find(&st.env, &"y2".to_string());
   assert!( y2 == Some(ostr!("banana")) )  
 }
 

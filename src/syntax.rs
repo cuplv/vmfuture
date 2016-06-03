@@ -9,43 +9,6 @@ use std::fmt::{Debug,Formatter,Result};
 //use adapton::macros::*;
 //use std::rc::Rc;
 
-#[allow(dead_code)]
-pub mod refl {
-  //use std::collections::HashMap;
-  use adapton::collections::{List};
-  
-  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
-  pub enum CTyp {
-    Top, 
-    F(Box<VTyp>), // Ret
-    Arr(Box<VTyp>, Box<CTyp>), // ->
-  }
-  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
-  pub enum VTyp {
-    Top,
-    Num, Str, Bool,
-    Dict(Box<Dict>),
-    Db(Box<VTyp>), // "Database" (A multiset of some kind)
-    Ref(Box<VTyp>),
-    U(Box<CTyp>), // Thunk
-  }
-  //pub type Dict = HashMap<super::obj::Val,Typ>;
-  pub type Dict = List<(super::obj::Val, VTyp)>;
-  pub type VAnn = VTyp;
-  pub type CAnn = CTyp;
-  pub type TEnv = List<(super::obj::Var, VTyp)>;
-}
-
-impl Debug for obj::State {
-  fn fmt(&self, f:&mut Formatter) -> Result { 
-    write!(f, "{{\n\tstore:{:?},\n\tstack:{:?},\n\tenv:{:?},\n\tpexp:{:?}\n}}",
-           self.store,
-           self.stack,
-           self.env,
-           self.pexp)
-  }
-}
-
 pub mod obj {  
   //use super::*;
   //use std::collections::HashMap;
@@ -145,4 +108,42 @@ pub mod obj {
   //pub type Env  = List<(Var,Val)>;
   //pub type Dict = HashMap<Val,Val>;
   //pub type Env  = HashMap<Var,Val>;
+}
+
+
+#[allow(dead_code)]
+pub mod refl {
+  //use std::collections::HashMap;
+  use adapton::collections::{List};
+  
+  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
+  pub enum CTyp {
+    Top, 
+    F(Box<VTyp>), // Ret
+    Arr(Box<VTyp>, Box<CTyp>), // ->
+  }
+  #[derive(Debug,PartialEq,Eq,Hash,Clone)]
+  pub enum VTyp {
+    Top,
+    Num, Str, Bool,
+    Dict(Box<Dict>),
+    Db(Box<VTyp>), // "Database" (A multiset of some kind)
+    Ref(Box<VTyp>),
+    U(Box<CTyp>), // Thunk
+  }
+  //pub type Dict = HashMap<super::obj::Val,Typ>;
+  pub type Dict = List<(super::obj::Val, VTyp)>;
+  pub type VAnn = VTyp;
+  pub type CAnn = CTyp;
+  pub type TEnv = List<(super::obj::Var, VTyp)>;
+}
+
+impl Debug for obj::State {
+  fn fmt(&self, f:&mut Formatter) -> Result { 
+    write!(f, "{{\n\tstore:{:?},\n\tstack:{:?},\n\tenv:{:?},\n\tpexp:{:?}\n}}",
+           self.store,
+           self.stack,
+           self.env,
+           self.pexp)
+  }
 }
