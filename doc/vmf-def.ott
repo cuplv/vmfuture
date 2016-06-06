@@ -11,6 +11,10 @@ J :: 'J_' ::= {{ com Custom judgement forms; for TeX }}
  | Ctx |- v <~~ A :: :: check_value
  | env v ~> v' :: :: close_value {{ tex [[env]]([[v]])\,{=}\,[[v']] }}
  | l notin store :: :: l_notin_store {{ tex [[l]] \not\in [[store]] }}
+ | Ctx |- pe : C :: :: ty_pe_c
+ | Ctx |- pv : A :: :: ty_pv_a
+ | Ctx |- e : C :: :: ty_e_c
+ | Ctx |- v : A :: :: ty_v_a
 
 grammar
 A, B :: 'A_' ::= {{ com Value Types }}
@@ -50,14 +54,14 @@ e :: 'e_' ::= {{ com Expressions: Annotated pre-expressions }}
 pe {{ tex \dot{e} }} :: 'pe_' ::= {{ com Pre-Expressions }}
  | e v               :: :: app
  | lam x . e         :: :: lam {{ tex \lambda [[x]]. [[e]] }}
- | let x = e1 in e2  :: :: let
+ | let x = e1 in e2  :: :: let {{ tex [[let]]\;[[x]]\,{\texttt{=} }\,[[e1]]\,[[in]]\,[[e2]] }}
  | ret v             :: :: ret
  | force v           :: :: force
  | ref v             :: :: ref
  | set v1 v2         :: :: set
  | get v             :: :: get
  | ext v1 v2 v3      :: :: ext
- | proj oa v1 v2        :: :: proj {{ tex [[proj]]_{[[oa]]}~[[v1]]\left[ [[v2]] \right] }}
+ | proj oa v1 v2        :: :: proj {{ tex [[v1]]\left[ [[v2]] \right]_{[[oa]]} }}
  | v ?: av           :: :: chk
 
  | openDb oa v :: :: openDb           {{ tex \texttt{openDb}_{[[oa]]}~[[v]] }}
