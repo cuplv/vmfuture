@@ -18,7 +18,7 @@ J :: 'J_' ::= {{ com Custom judgement forms; for TeX }}
 
 grammar
 A, B :: 'A_' ::= {{ com Value Types }}
- | TopV   :: :: topv
+ | ?      :: :: top
  | Num    :: :: num
  | Str    :: :: str
  | Dict Delta :: :: dict
@@ -36,7 +36,6 @@ Delta {{ tex \Delta }} :: 'Delta_' ::= {{ com Dictionary types: Internal structu
  | Delta1 , Delta2 :: :: append
 
 C, D :: 'C_' ::= {{ com Computation Types }}
- | TopC   :: :: topc
  | A -> C :: :: arr
  | F A    :: :: f
  | ( C ) :: S :: paren
@@ -218,10 +217,10 @@ Ctx |- v3 : B
 ------------------------------------------------- :: ext
 Ctx |- ext v1 v2 v3 : F (Dict (Delta, v2 => B))
 
-Ctx |- v1 : TopV
+Ctx |- v1 : ?
 Ctx |- v2 : A
 ----------------------------- :: projTop
-Ctx |- proj? v1 v2 : F TopV
+Ctx |- proj? v1 v2 : F ?
 
 Ctx |- v1 : Dict (Delta, v2 => B)
 emp |- v2 : A
@@ -230,19 +229,19 @@ Ctx |- proj! v1 v2 : F B
 
 Ctx |- v : Str
 -------------------------------- :: openDb
-Ctx |- openDb? v : F (Db TopV)
+Ctx |- openDb? v : F (Db ?)
 
 Ctx |- v1 : Db A
 Ctx |- v2 : U( A -> F 2)
 --------------------------------- :: filterDb
 Ctx |- filterDb! v1 v2 : F (Db A)
 
-Ctx |- v1 : Db TopV
+Ctx |- v1 : Db ?
 Ctx |- v2 : A1
-Ctx |- v3 : Db TopV
+Ctx |- v3 : Db ?
 Ctx |- v4 : A2
 ------------------------------------------ :: joinDbTop
-Ctx |- joinDb ? v1 v2 v3 v4 : F (Db TopV)
+Ctx |- joinDb ? v1 v2 v3 v4 : F (Db ?)
 
 Ctx |- v1 : Db (Dict (Delta1, v2 => B))
 emp |- v2 : A1
@@ -279,7 +278,7 @@ A <= B
 by
 
 -------------- :: Top
-A <= TopV
+A <= ?
 
 A <= B
 ------------ :: Db
@@ -486,12 +485,12 @@ env v ~> (thunk env' (pe@:ae) @: av)
 
 l notin store
 -------------------------------------------------------------------------------- :: ref
-<store; stack; env; ref v> --> <store, l => v; stack; env; ret (loc l @: TopV)>
+<store; stack; env; ref v> --> <store, l => v; stack; env; ret (loc l @: ?)>
 
 env v1 ~> (loc l @: av)
 env v2 ~> v2'
 --------------------------------------------------------------------------------- :: set
-<store; stack; env; set v1 v2> --> <store, l => v2'; stack; env; ret (() @: TopV)>
+<store; stack; env; set v1 v2> --> <store, l => v2'; stack; env; ret (() @: ?)>
 
 env v1 ~> (loc l @: av)
 --------------------------------------------------------------------------- :: get
@@ -501,7 +500,7 @@ env v1 ~> (dict delta @: av)
 env v2 ~> v2'
 env v3 ~> v3'
 --------------------------------------------------------------------------------------------- :: ext
-<store; stack; env; ext v1 v2 v3> --> <store; stack; env; ret (dict (delta, v2'=>v3')@:TopV)>
+<store; stack; env; ext v1 v2 v3> --> <store; stack; env; ret (dict (delta, v2'=>v3')@:?)>
 
 env v2 ~> v2'
 env v1 ~> (dict (delta, v2' => v3) @: av)
@@ -581,8 +580,7 @@ grammar
     | Delta      :: :: delta  {{ tex \Delta }}
 %    | ==>      :: :: impty    {{ tex \impty }}
 %    | &&       :: :: withty   {{ tex \withty }}
-    | TopC    :: :: topc    {{ tex \top_\textsf{C} }}
-    | TopV    :: :: topv    {{ tex \top_\textsf{V} }}
+    | ?        :: :: topv     {{ tex \textsf{?} }}
     | union    :: :: union    {{ tex \cup }}
     | mem      :: :: mem      {{ tex \in }}
     | notin    :: :: notin    {{ tex \notin }}

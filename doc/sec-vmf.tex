@@ -2,9 +2,9 @@
 
 \begin{figure}
 \begin{grammar}
-  Expr.     & $\ottnt{e}$& $\bnfas$& $ \dot{e} ~\texttt{@:}~ a^\textsf{e} $
+  Expr.     & $\ottnt{e}$& $\bnfas$& $ \dot{e} ~\texttt{@:}~ a^\textsf{e} $ & Annotated pre-expression
   \\
-  Pre-Expr. & $\dot{e}$
+  Pre-Expr. & $\dot{e}$ & 
   &$\bnfas$&
   \\ &&& $\bnfaltbrk \ottkw{force} \, \ottnt{v}$ & Unsuspend (force) thunk
   \\ &&& $\bnfaltbrk  \lambda  x .  \ottnt{e} $ & Function abstraction
@@ -18,9 +18,9 @@
   \\ &&& $\bnfaltbrk  \ottnt{v_{{\mathrm{1}}}} \left[  \ottnt{v_{{\mathrm{2}}}}  \right]_{ a^{\textsf{op} } } $ & Dictionary projection
   \\ &&& $\bnfaltbrk \ottnt{v}  \mathrel{ \texttt{?:} }  a^\textsf{v}$ & Annotation Ascription
   \\[2px]
-  Value    & $\ottnt{v}$& $\bnfas$& $ \dot{v} ~\texttt{@:}~ a^\textsf{v} $
+  Value    & $\ottnt{v}$& $\bnfas$& $ \dot{v} ~\texttt{@:}~ a^\textsf{v} $ & Annotated pre-value
   \\
-  Pre-Val. & $\dot{v}$
+  Pre-Val. & $\dot{v}$ 
   &$\bnfas$&        $\ottkw{othunk} \, \ottnt{e}$    & Open thunk
   \\ &&& $\bnfaltbrk \ottkw{thunk} \, \rho \, \ottnt{e}$ & Closed thunk
   \\ &&& $\bnfaltbrk \ottkw{dict} \, \delta$  & Dictionary
@@ -34,7 +34,7 @@
   &$\bnfas$& $\varepsilon~|~ \delta  ,  \ottnt{v_{{\mathrm{1}}}}  \mapsto  \ottnt{v_{{\mathrm{2}}}} $ & Dictionaries of values
   \\[2mm]
   Annot.
-    & $a^{\textsf{op} }$ & $\bnfas$ & $ \texttt{?} ~|~ \texttt{!} $ & Uncertain vs. verified
+    & $a^{\textsf{op} }$ & $\bnfas$ & $ \textsf{?} ~|~ \texttt{!} $ & Uncertain vs. verified
   \\
     & $a^\textsf{v}$ & $\bnfas$ & $\cdots$ & Value annotation
   \\
@@ -140,16 +140,16 @@ computations over simple databases.
   \left<  \mu ;  \kappa ;  \rho ;  \ottkw{force} \, \ottnt{v}  \right>   & \longrightarrow &   \left<  \mu ;  \kappa ;  \rho' ;  \dot{e}  \right>  
 & \textrm{when} &  \rho ( \ottnt{v} )\,{=}\, \ottsym{(}   \ottkw{thunk} \, \rho' \, \ottsym{(}   \dot{e} ~\texttt{@:}~ a^\textsf{e}   \ottsym{)} ~\texttt{@:}~ a^\textsf{v}   \ottsym{)} 
 \\
-  \left<  \mu ;  \kappa ;  \rho ;  \ottkw{ref} \, \ottnt{v}  \right>   & \longrightarrow &   \left<   \mu  ,  \ell \mapsto \ottnt{v}  ;  \kappa ;  \rho ;  \ottkw{ret} \, \ottsym{(}   \ottkw{loc} \, \ell ~\texttt{@:}~ \top_\textsf{V}   \ottsym{)}  \right>  
+  \left<  \mu ;  \kappa ;  \rho ;  \ottkw{ref} \, \ottnt{v}  \right>   & \longrightarrow &   \left<   \mu  ,  \ell \mapsto \ottnt{v}  ;  \kappa ;  \rho ;  \ottkw{ret} \, \ottsym{(}   \ottkw{loc} \, \ell ~\texttt{@:}~ \textsf{?}   \ottsym{)}  \right>  
 & \textrm{when} &  \ell  \not\in  \mu 
 \\
-  \left<  \mu ;  \kappa ;  \rho ;  \ottkw{set} \, \ottnt{v_{{\mathrm{1}}}} \, \ottnt{v_{{\mathrm{2}}}}  \right>   & \longrightarrow &   \left<   \mu  ,  \ell \mapsto \ottnt{v'_{{\mathrm{2}}}}  ;  \kappa ;  \rho ;  \ottkw{ret} \, \ottsym{(}   \ottsym{()} ~\texttt{@:}~ \top_\textsf{V}   \ottsym{)}  \right>  
+  \left<  \mu ;  \kappa ;  \rho ;  \ottkw{set} \, \ottnt{v_{{\mathrm{1}}}} \, \ottnt{v_{{\mathrm{2}}}}  \right>   & \longrightarrow &   \left<   \mu  ,  \ell \mapsto \ottnt{v'_{{\mathrm{2}}}}  ;  \kappa ;  \rho ;  \ottkw{ret} \, \ottsym{(}   \ottsym{()} ~\texttt{@:}~ \textsf{?}   \ottsym{)}  \right>  
 & \textrm{when} &  \rho ( \ottnt{v_{{\mathrm{1}}}} )\,{=}\, \ottsym{(}   \ottkw{loc} \, \ell ~\texttt{@:}~ a^\textsf{v}   \ottsym{)} ~\textrm{and}~ \rho ( \ottnt{v_{{\mathrm{2}}}} )\,{=}\, \ottnt{v'_{{\mathrm{2}}}} 
 \\
   \left<   \mu  ,  \ell \mapsto \ottnt{v_{{\mathrm{2}}}}  ;  \kappa ;  \rho ;  \ottkw{get} \, \ottnt{v_{{\mathrm{1}}}}  \right>   & \longrightarrow &   \left<   \mu  ,  \ell \mapsto \ottnt{v_{{\mathrm{2}}}}  ;  \kappa ;  \rho ;  \ottkw{ret} \, \ottnt{v_{{\mathrm{2}}}}  \right>  
 & \textrm{when} &  \rho ( \ottnt{v_{{\mathrm{1}}}} )\,{=}\, \ottsym{(}   \ottkw{loc} \, \ell ~\texttt{@:}~ a^\textsf{v}   \ottsym{)} 
 \\
-  \left<  \mu ;  \kappa ;  \rho ;  \ottkw{ext} \, \ottnt{v_{{\mathrm{1}}}} \, \ottnt{v_{{\mathrm{2}}}} \, \ottnt{v_{{\mathrm{3}}}}  \right>   & \longrightarrow &   \left<  \mu ;  \kappa ;  \rho ;  \ottkw{ret} \, \ottsym{(}   \ottkw{dict} \, \ottsym{(}   \delta  ,  \ottnt{v'_{{\mathrm{2}}}}  \mapsto  \ottnt{v'_{{\mathrm{3}}}}   \ottsym{)} ~\texttt{@:}~ \top_\textsf{V}   \ottsym{)}  \right>  
+  \left<  \mu ;  \kappa ;  \rho ;  \ottkw{ext} \, \ottnt{v_{{\mathrm{1}}}} \, \ottnt{v_{{\mathrm{2}}}} \, \ottnt{v_{{\mathrm{3}}}}  \right>   & \longrightarrow &   \left<  \mu ;  \kappa ;  \rho ;  \ottkw{ret} \, \ottsym{(}   \ottkw{dict} \, \ottsym{(}   \delta  ,  \ottnt{v'_{{\mathrm{2}}}}  \mapsto  \ottnt{v'_{{\mathrm{3}}}}   \ottsym{)} ~\texttt{@:}~ \textsf{?}   \ottsym{)}  \right>  
 & \textrm{when} & 
  \rho ( \ottnt{v_{{\mathrm{1}}}} )\,{=}\, \ottsym{(}   \ottkw{dict} \, \delta ~\texttt{@:}~ a^\textsf{v}   \ottsym{)} ,~ \rho ( \ottnt{v_{{\mathrm{2}}}} )\,{=}\, \ottnt{v'_{{\mathrm{2}}}} ~\textrm{and}~ \rho ( \ottnt{v_{{\mathrm{3}}}} )\,{=}\, \ottnt{v'_{{\mathrm{3}}}} 
 \\
@@ -197,7 +197,7 @@ computations over simple databases.
   \\ &&& $\bnfaltbrk \ottkw{Str}$& String
   \\ &&& $\bnfaltbrk \ottkw{Ref} \, \ottnt{A}$& Store reference
   \\ &&& $\bnfaltbrk \ottsym{1}$& Unit
-  \\ &&& $\bnfaltbrk  \top_\textsf{V} $& Unknown value type
+  \\ &&& $\bnfaltbrk  \textsf{?} $& Unknown value type
   \\ &&& $\bnfaltbrk \ottkw{Db} \, \ottnt{A}$& Database; multiset of $\ottnt{A}$s
   \\[2mm]
   Dictionary & $\Delta$ & $\bnfas$ & \multicolumn{2}{l}{$\varepsilon~|~\Delta  \ottsym{,}  \ottnt{v}  \Rightarrow  \ottnt{A}$~~~\textrm{Maps values to types}}
@@ -208,7 +208,6 @@ computations over simple databases.
   \\ 
   Types
   &&& $\bnfaltbrk \ottkw{F} \, \ottnt{A}$ & Value production
-  \\ &&& $\bnfaltbrk  \top_\textsf{C} $& Unknown computation type
 \end{grammar}
 \caption{Type Syntax: Annotations for Values and Expressions}
 \label{fig:types}
@@ -229,11 +228,11 @@ computations over simple databases.
 {\Gamma  \vdash  \ottnt{e} \, \ottnt{v}  \ottsym{:}  \ottnt{C}}
 \and
 \Infer{proj?}
-{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \ottsym{:}  \top_\textsf{V}
+{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \ottsym{:}  \textsf{?}
 \\\\
-\Gamma  \vdash  \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \top_\textsf{V}
+\Gamma  \vdash  \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \textsf{?}
 }
-{\Gamma  \vdash   \ottnt{v_{{\mathrm{1}}}} \left[  \ottnt{v_{{\mathrm{2}}}}  \right]_{  \texttt{?}  }   \ottsym{:}  \ottkw{F} \, \top_\textsf{V} }
+{\Gamma  \vdash   \ottnt{v_{{\mathrm{1}}}} \left[  \ottnt{v_{{\mathrm{2}}}}  \right]_{  \texttt{?}  }   \ottsym{:}  \ottkw{F} \, \textsf{?} }
 \and
 \Infer{proj!}
 {\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{Dict} \, \ottsym{(}  \Delta  \ottsym{,}  \ottnt{v_{{\mathrm{2}}}}  \Rightarrow  \ottnt{A}  \ottsym{)}
@@ -244,14 +243,14 @@ computations over simple databases.
 \and
 \Infer{openDb?}
 {\Gamma  \vdash  \ottnt{v}  \ottsym{:}  \ottkw{Str}}
-{\Gamma  \vdash   \texttt{openDb}_{  \texttt{?}  }~ \ottnt{v}   \ottsym{:}  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \top_\textsf{V}  \ottsym{)}}
+{\Gamma  \vdash   \texttt{openDb}_{  \texttt{?}  }~ \ottnt{v}   \ottsym{:}  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \textsf{?}  \ottsym{)}}
 \and
 \Infer{filterDb?}
-{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{Db} \, \top_\textsf{V}
+{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{Db} \, \textsf{?}
 \\
-\Gamma  \vdash  \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \ottkw{U} \, \ottsym{(}  \top_\textsf{V}  \rightarrow  \ottkw{F} \, \ottsym{2}  \ottsym{)}
+\Gamma  \vdash  \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \ottkw{U} \, \ottsym{(}  \textsf{?}  \rightarrow  \ottkw{F} \, \ottsym{2}  \ottsym{)}
 }
-{\Gamma  \vdash   \texttt{filterDb}_{  \texttt{?}  }~ \ottnt{v_{{\mathrm{1}}}} ~ \ottnt{v_{{\mathrm{2}}}}   \ottsym{:}  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \top_\textsf{V}  \ottsym{)}}
+{\Gamma  \vdash   \texttt{filterDb}_{  \texttt{?}  }~ \ottnt{v_{{\mathrm{1}}}} ~ \ottnt{v_{{\mathrm{2}}}}   \ottsym{:}  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \textsf{?}  \ottsym{)}}
 \and
 \Infer{filterDb!}
 {\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{Db} \, \ottnt{A}
@@ -261,15 +260,15 @@ computations over simple databases.
 {\Gamma  \vdash   \texttt{filterDb}_{  \texttt{!}  }~ \ottnt{v_{{\mathrm{1}}}} ~ \ottnt{v_{{\mathrm{2}}}}   \ottsym{:}  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \ottnt{A}  \ottsym{)}}
 \and
 \Infer{joinDb?}
-{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{Db} \, \top_\textsf{V}
+{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{Db} \, \textsf{?}
 \\
 \Gamma  \vdash  \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{B_{{\mathrm{2}}}}
 \\\\
-\Gamma  \vdash  \ottnt{v_{{\mathrm{3}}}}  \ottsym{:}  \ottkw{Db} \, \top_\textsf{V}
+\Gamma  \vdash  \ottnt{v_{{\mathrm{3}}}}  \ottsym{:}  \ottkw{Db} \, \textsf{?}
 \\
 \Gamma  \vdash  \ottnt{v_{{\mathrm{4}}}}  \ottsym{:}  \ottnt{B_{{\mathrm{4}}}}
 }
-{\Gamma  \vdash   \texttt{joinDb}_{  \texttt{?}  }~ \ottnt{v_{{\mathrm{1}}}} ~ \ottnt{v_{{\mathrm{2}}}} ~ \ottnt{v_{{\mathrm{3}}}} ~ \ottnt{v_{{\mathrm{4}}}}   \ottsym{:}  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \top_\textsf{V}  \ottsym{)}}
+{\Gamma  \vdash   \texttt{joinDb}_{  \texttt{?}  }~ \ottnt{v_{{\mathrm{1}}}} ~ \ottnt{v_{{\mathrm{2}}}} ~ \ottnt{v_{{\mathrm{3}}}} ~ \ottnt{v_{{\mathrm{4}}}}   \ottsym{:}  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \textsf{?}  \ottsym{)}}
 \and
 \Infer{joinDb!}
 {\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{Db} \, \ottsym{(}  \ottkw{Dict} \, \ottsym{(}  \Delta_{{\mathrm{1}}}  \ottsym{,}  \ottnt{v_{{\mathrm{2}}}}  \Rightarrow  \ottnt{A}  \ottsym{)}  \ottsym{)}
