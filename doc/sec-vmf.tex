@@ -4,9 +4,7 @@
 \begin{grammar}
   Expr.     & $\ottnt{e}$& $\bnfas$& $ \dot{e} ~\texttt{@:}~ a^\textsf{e} $ & Annotated pre-expression
   \\
-  Pre-Expr. & $\dot{e}$ & 
-  &$\bnfas$&
-  \\ &&& $\bnfaltbrk \ottkw{force} \, \ottnt{v}$ & Unsuspend (force) thunk
+  Pre-Expr. & $\dot{e}$ & $\bnfas$ & $\ottkw{force} \, \ottnt{v}$ & Unsuspend (force) thunk
   \\ &&& $\bnfaltbrk  \lambda  x .  \ottnt{e} $ & Function abstraction
   \\ &&& $\bnfaltbrk \ottnt{e} \, \ottnt{v}$ & Function application
   \\ &&& $\bnfaltbrk  \ottkw{let} \; x \,{\texttt{=} }\, \ottnt{e_{{\mathrm{1}}}} \, \ottkw{in} \, \ottnt{e_{{\mathrm{2}}}} $ & Bind computed value
@@ -16,7 +14,7 @@
   \\ &&& $\bnfaltbrk \ottkw{get} \, \ottnt{v}$ & Store projection
   \\ &&& $\bnfaltbrk \ottkw{ext} \, \ottnt{v_{{\mathrm{1}}}} \, \ottnt{v_{{\mathrm{2}}}} \, \ottnt{v_{{\mathrm{3}}}}$ & Dictionary extension
   \\ &&& $\bnfaltbrk  \ottnt{v_{{\mathrm{1}}}} \left[  \ottnt{v_{{\mathrm{2}}}}  \right]_{ a^{\textsf{op} } } $ & Dictionary projection
-  \\ &&& $\bnfaltbrk \ottnt{v}  \mathrel{ \texttt{?:} }  a^\textsf{v}$ & Annotation Ascription
+  \\ &&& $\bnfaltbrk \ottnt{e}  \mathrel{ \texttt{?:} }  a^\textsf{e}$ & Annotation Ascription
   \\[2px]
   Value    & $\ottnt{v}$& $\bnfas$& $ \dot{v} ~\texttt{@:}~ a^\textsf{v} $ & Annotated pre-value
   \\
@@ -47,53 +45,6 @@
 
 \subsection{VMF Syntax \& Dynamics}
 
-\paragraph{Program syntax.}
-For economy of both implementation and reasoning, the syntax of VMF
-programs is directly insipired by that of the Call-by-Push-Value
-(CPBV) syntax and evaluation strategy~\cite{CBPV}.
-%
-CBPV is similar to CBV, except that unlike CBV, CBPV neatly separates
-the concept of a thunked computation from that of a lambda
-abstraction.
-%
-Like other administrative normal forms, CPBV also imposes a separation
-of values and computations, in terms of syntax and semantics.
-%
-Computations that eliminate values have value sub-terms.
-%
-In contrast to computation forms, value forms consist of (passive,
-non-doing) data types; specifically, here we consider variables
-(ranging over previously-defined values), primitives (viz., numbers
-and strings), records of values, store locations, open thunks that
-suspend a computation term as a value~($\ottkw{othunk} \, \ottnt{e}$) and thunks
-closed by an environment~($\ottkw{thunk} \, \rho \, \ottnt{e}$).
-
-Unlike values, computations consist of program terms that actively
-\emph{do things}, and for which the VM defines operational steps. For
-instance, field projection from a record value is a computation, since
-it eliminates a value (viz., the record that contains the projected
-field) and introduces a new one.
-%
-Though CBV treats lambdas as values, the distinctive quirk of CBPV is
-that function abstraction is a computation (not a value) and that it
-interacts with function applications via an ambient stack (hence,
-``call-by-\emph{push}-value''):
-%
-Function application~$\ottnt{e} \, \ottnt{v}$ uses a function abstraction by pushing
-an argument value~$v$ on this ambient stack and then running the
-function body~$e$.
-%
-Lambdas~$ \lambda  x .  \ottnt{e} $ abstract over a variable~$x$ by popping a value
-for~$x$ from this ambient stack.
-%
-Compared with CBV, the presence of this ambient stack streamlines the
-expression of currying.
-%
-Specifically, CBPV avoids the need for creating closures that
-represent the partially-applied lambdas in the curried series.
-%
-Below, we will augment these (standard) computations and values with
-computations over simple databases.
 
 \paragraph{VM State syntax.}
 
@@ -153,15 +104,14 @@ computations over simple databases.
 & \textrm{when} & 
  \rho ( \ottnt{v_{{\mathrm{1}}}} )\,{=}\, \ottsym{(}   \ottkw{dict} \, \delta ~\texttt{@:}~ a^\textsf{v}   \ottsym{)} ,~ \rho ( \ottnt{v_{{\mathrm{2}}}} )\,{=}\, \ottnt{v'_{{\mathrm{2}}}} ~\textrm{and}~ \rho ( \ottnt{v_{{\mathrm{3}}}} )\,{=}\, \ottnt{v'_{{\mathrm{3}}}} 
 \\
-  \left<  \mu ;  \kappa ;  \rho ;   \ottnt{v_{{\mathrm{1}}}} \left[  \ottnt{v_{{\mathrm{2}}}}  \right]_{ a^{\textsf{op} } }   \right>   & \longrightarrow &   \left<  \mu ;  \kappa ;  \rho ;  \ottkw{ret} \, \ottnt{v_{{\mathrm{3}}}}  \right>  
+  \left<  \mu ;  \kappa ;  \rho ;   \ottnt{v_{{\mathrm{1}}}} \left[  \ottnt{v_{{\mathrm{2}}}}  \right]_{  \texttt{!}  }   \right>   & \longrightarrow &   \left<  \mu ;  \kappa ;  \rho ;  \ottkw{ret} \, \ottnt{v_{{\mathrm{3}}}}  \right>  
 & \textrm{when} &  \rho ( \ottnt{v_{{\mathrm{2}}}} )\,{=}\, \ottnt{v'_{{\mathrm{2}}}} ~\textrm{and}~ \rho ( \ottnt{v_{{\mathrm{1}}}} )\,{=}\, \ottsym{(}   \ottkw{dict} \, \ottsym{(}   \delta  ,  \ottnt{v'_{{\mathrm{2}}}}  \mapsto  \ottnt{v_{{\mathrm{3}}}}   \ottsym{)} ~\texttt{@:}~ a^\textsf{v}   \ottsym{)} 
-\\[2mm]
-  \left<  \mu ;  \kappa ;  \rho ;  \ottnt{v}  \mathrel{ \texttt{?:} }  \ottnt{A}  \right>   & \longrightarrow &   \left<  \mu ;  \kappa ;  \rho ;  \ottkw{ret} \, \ottsym{(}   \dot{v} ~\texttt{@:}~ \ottnt{A}   \ottsym{)}  \right>  
-& \textrm{when} &  \left| \mu \right|   \vdash  \ottnt{v}  \ottsym{<~~}  \ottnt{A}
 \end{array}
 \]
 \caption{Small-step, abstract machine semantics of VMF}
 \end{figure*}
+
+\clearpage
 
 \section{Gradual Typing for Simple Databases}
 
@@ -200,7 +150,7 @@ computations over simple databases.
   \\ &&& $\bnfaltbrk  \textsf{?} $& Unknown value type
   \\ &&& $\bnfaltbrk \ottkw{Db} \, \ottnt{A}$& Database; multiset of $\ottnt{A}$s
   \\[2mm]
-  Dictionary & $\Delta$ & $\bnfas$ & \multicolumn{2}{l}{$\varepsilon~|~\Delta  \ottsym{,}  \ottnt{v}  \Rightarrow  \ottnt{A}$~~~\textrm{Maps values to types}}
+  Dictionary & $\Delta$ & $\bnfas$ & \multicolumn{2}{l}{$\varepsilon~|~ \Delta ,  \ottnt{v} \mapsto \ottnt{A} $~~~\textrm{Maps values to types}}
   \\[2mm]
   Computation & $\ottnt{C}, \ottnt{D}$ & $\bnfas$& 
   %\\ &&& 
@@ -212,6 +162,143 @@ computations over simple databases.
 \caption{Type Syntax: Annotations for Values and Expressions}
 \label{fig:types}
 \end{figure}
+
+
+\begin{figure}
+\small
+\begin{mathpar}
+\Infer{annot}
+{\Gamma  \vdash  \ottnt{e}  \Leftarrow  \ottnt{C}}
+{\Gamma  \vdash  \ottnt{e}  \mathrel{ \texttt{?:} }  \ottnt{C}  \Rightarrow  \ottnt{C}}
+\and
+\Infer{sub}
+{\Gamma  \vdash  \ottnt{e}  \Rightarrow  \ottnt{C} 
+  \\ 
+   \ottnt{C}  \approx_{\textsf{?} }  \ottnt{D} }
+{\Gamma  \vdash  \ottnt{e}  \Leftarrow  \ottnt{D}}
+\and
+\Infer{lam}
+{\Gamma  \ottsym{,}  x  \ottsym{:}  \ottnt{A}  \vdash  \ottnt{e}  \Leftarrow  \ottnt{C}}
+{\Gamma  \vdash   \lambda  x .  \ottnt{e}   \Leftarrow  \ottnt{A}  \rightarrow  \ottnt{C} }
+\and
+\Infer{app}
+{\Gamma  \vdash  \ottnt{e}  \Rightarrow  \ottnt{A}  \rightarrow  \ottnt{C}
+\\\\
+\Gamma  \vdash  \ottnt{v}  \Leftarrow  \ottnt{A}
+}
+{\Gamma  \vdash  \ottnt{e} \, \ottnt{v}  \Rightarrow  \ottnt{C}}
+\and
+\Infer{}
+{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \Rightarrow  \textsf{?}
+\\\\
+\Gamma  \vdash  \ottnt{v_{{\mathrm{2}}}}  \Rightarrow  \textsf{?}
+}
+{\Gamma  \vdash   \ottnt{v_{{\mathrm{1}}}} \left[  \ottnt{v_{{\mathrm{2}}}}  \right]_{  \texttt{?}  }   \Rightarrow  \ottkw{F} \, \textsf{?} }
+\and
+\Infer{}
+{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \Rightarrow  \ottkw{Dict} \, \ottsym{(}   \Delta ,  \ottnt{v_{{\mathrm{2}}}} \mapsto \ottnt{A}   \ottsym{)}
+\\\\
+\Gamma  \vdash  \ottnt{v_{{\mathrm{2}}}}  \Rightarrow  \ottnt{B}
+}
+{\Gamma  \vdash   \ottnt{v_{{\mathrm{1}}}} \left[  \ottnt{v_{{\mathrm{2}}}}  \right]_{  \texttt{!}  }   \Rightarrow  \ottkw{F} \, \ottnt{A} }
+\and
+\Infer{openDb?}
+{\Gamma  \vdash  \ottnt{v}  \Rightarrow  \ottkw{Str}}
+{\Gamma  \vdash   \texttt{openDb}_{  \texttt{?}  }~ \ottnt{v}   \Rightarrow  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \textsf{?}  \ottsym{)}}
+\and
+\Infer{filterDb?}
+{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \Rightarrow  \ottkw{Db} \, \textsf{?}
+\\
+\Gamma  \vdash  \ottnt{v_{{\mathrm{2}}}}  \Leftarrow  \ottkw{U} \, \ottsym{(}  \textsf{?}  \rightarrow  \ottkw{F} \, \ottsym{2}  \ottsym{)}
+}
+{\Gamma  \vdash   \texttt{filterDb}_{  \texttt{?}  }~ \ottnt{v_{{\mathrm{1}}}} ~ \ottnt{v_{{\mathrm{2}}}}   \Rightarrow  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \textsf{?}  \ottsym{)}}
+\and
+\Infer{filterDb!}
+{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \Rightarrow  \ottkw{Db} \, \ottnt{A}
+\\
+\Gamma  \vdash  \ottnt{v_{{\mathrm{2}}}}  \Leftarrow  \ottkw{U} \, \ottsym{(}  \ottnt{A}  \rightarrow  \ottkw{F} \, \ottsym{2}  \ottsym{)}
+}
+{\Gamma  \vdash   \texttt{filterDb}_{  \texttt{!}  }~ \ottnt{v_{{\mathrm{1}}}} ~ \ottnt{v_{{\mathrm{2}}}}   \Rightarrow  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \ottnt{A}  \ottsym{)}}
+\and
+\Infer{joinDb?}
+{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \Rightarrow  \ottkw{Db} \, \textsf{?}
+\\
+\Gamma  \vdash  \ottnt{v_{{\mathrm{2}}}}  \Rightarrow  \ottnt{B_{{\mathrm{2}}}}
+\\\\
+\Gamma  \vdash  \ottnt{v_{{\mathrm{3}}}}  \Rightarrow  \ottkw{Db} \, \textsf{?}
+\\
+\Gamma  \vdash  \ottnt{v_{{\mathrm{4}}}}  \Rightarrow  \ottnt{B_{{\mathrm{4}}}}
+}
+{\Gamma  \vdash   \texttt{joinDb}_{  \texttt{?}  }~ \ottnt{v_{{\mathrm{1}}}} ~ \ottnt{v_{{\mathrm{2}}}} ~ \ottnt{v_{{\mathrm{3}}}} ~ \ottnt{v_{{\mathrm{4}}}}   \Rightarrow  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \textsf{?}  \ottsym{)}}
+\and
+\Infer{joinDb!}
+{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \Rightarrow  \ottkw{Db} \, \ottsym{(}  \ottkw{Dict} \, \ottsym{(}   \Delta_{{\mathrm{1}}} ,  \ottnt{v_{{\mathrm{2}}}} \mapsto \ottnt{A}   \ottsym{)}  \ottsym{)}
+\\
+\Gamma  \vdash  \ottnt{v_{{\mathrm{2}}}}  \Rightarrow  \ottnt{B_{{\mathrm{2}}}}
+\\
+\Gamma  \vdash  \ottnt{v_{{\mathrm{3}}}}  \Rightarrow  \ottkw{Db} \, \ottsym{(}  \ottkw{Dict} \, \ottsym{(}   \Delta_{{\mathrm{3}}} ,  \ottnt{v_{{\mathrm{4}}}} \mapsto \ottnt{A}   \ottsym{)}  \ottsym{)}
+\\
+\Gamma  \vdash  \ottnt{v_{{\mathrm{4}}}}  \Rightarrow  \ottnt{B_{{\mathrm{4}}}}
+}
+{\Gamma  \vdash   \texttt{joinDb}_{  \texttt{!}  }~ \ottnt{v_{{\mathrm{1}}}} ~ \ottnt{v_{{\mathrm{2}}}} ~ \ottnt{v_{{\mathrm{3}}}} ~ \ottnt{v_{{\mathrm{4}}}}   \ottsym{:}  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \ottsym{(}  \ottkw{Dict} \, \ottsym{(}    \Delta_{{\mathrm{1}}} ,  \ottnt{v_{{\mathrm{2}}}} \mapsto \ottnt{A}   ,   \Delta_{{\mathrm{3}}} ,  \ottnt{v_{{\mathrm{4}}}} \mapsto \ottnt{A}    \ottsym{)}  \ottsym{)}  \ottsym{)}}
+\end{mathpar}
+\caption{Selected typing rules}
+\end{figure}
+
+\paragraph{Library primitives: Syntax \& Dynamics.}
+
+\clearpage
+\appendix
+\section{Appendix}
+
+
+\paragraph{Program syntax: CBPV.}
+For economy of both implementation and reasoning, the syntax of VMF
+programs is directly insipired by that of the Call-by-Push-Value
+(CPBV) syntax and evaluation strategy~\cite{CBPV}.
+%
+CBPV is similar to CBV, except that unlike CBV, CBPV neatly separates
+the concept of a thunked computation from that of a lambda
+abstraction.
+%
+Like other administrative normal forms, CPBV also imposes a separation
+of values and computations, in terms of syntax and semantics.
+%
+Computations that eliminate values have value sub-terms.
+%
+In contrast to computation forms, value forms consist of (passive,
+non-doing) data types; specifically, here we consider variables
+(ranging over previously-defined values), primitives (viz., numbers
+and strings), records of values, store locations, open thunks that
+suspend a computation term as a value~($\ottkw{othunk} \, \ottnt{e}$) and thunks
+closed by an environment~($\ottkw{thunk} \, \rho \, \ottnt{e}$).
+
+Unlike values, computations consist of program terms that actively
+\emph{do things}, and for which the VM defines operational steps. For
+instance, field projection from a record value is a computation, since
+it eliminates a value (viz., the record that contains the projected
+field) and introduces a new one.
+%
+Though CBV treats lambdas as values, the distinctive quirk of CBPV is
+that function abstraction is a computation (not a value) and that it
+interacts with function applications via an ambient stack (hence,
+``call-by-\emph{push}-value''):
+%
+Function application~$\ottnt{e} \, \ottnt{v}$ uses a function abstraction by pushing
+an argument value~$v$ on this ambient stack and then running the
+function body~$e$.
+%
+Lambdas~$ \lambda  x .  \ottnt{e} $ abstract over a variable~$x$ by popping a value
+for~$x$ from this ambient stack.
+%
+Compared with CBV, the presence of this ambient stack streamlines the
+expression of currying.
+%
+Specifically, CBPV avoids the need for creating closures that
+represent the partially-applied lambdas in the curried series.
+%
+Below, we will augment these (standard) computations and values with
+computations over simple databases.
 
 \begin{figure}
 \small
@@ -235,7 +322,7 @@ computations over simple databases.
 {\Gamma  \vdash   \ottnt{v_{{\mathrm{1}}}} \left[  \ottnt{v_{{\mathrm{2}}}}  \right]_{  \texttt{?}  }   \ottsym{:}  \ottkw{F} \, \textsf{?} }
 \and
 \Infer{proj!}
-{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{Dict} \, \ottsym{(}  \Delta  \ottsym{,}  \ottnt{v_{{\mathrm{2}}}}  \Rightarrow  \ottnt{A}  \ottsym{)}
+{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{Dict} \, \ottsym{(}   \Delta ,  \ottnt{v_{{\mathrm{2}}}} \mapsto \ottnt{A}   \ottsym{)}
 \\\\
 \Gamma  \vdash  \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{B}
 }
@@ -271,18 +358,15 @@ computations over simple databases.
 {\Gamma  \vdash   \texttt{joinDb}_{  \texttt{?}  }~ \ottnt{v_{{\mathrm{1}}}} ~ \ottnt{v_{{\mathrm{2}}}} ~ \ottnt{v_{{\mathrm{3}}}} ~ \ottnt{v_{{\mathrm{4}}}}   \ottsym{:}  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \textsf{?}  \ottsym{)}}
 \and
 \Infer{joinDb!}
-{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{Db} \, \ottsym{(}  \ottkw{Dict} \, \ottsym{(}  \Delta_{{\mathrm{1}}}  \ottsym{,}  \ottnt{v_{{\mathrm{2}}}}  \Rightarrow  \ottnt{A}  \ottsym{)}  \ottsym{)}
+{\Gamma  \vdash  \ottnt{v_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{Db} \, \ottsym{(}  \ottkw{Dict} \, \ottsym{(}   \Delta_{{\mathrm{1}}} ,  \ottnt{v_{{\mathrm{2}}}} \mapsto \ottnt{A}   \ottsym{)}  \ottsym{)}
 \\
 \Gamma  \vdash  \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{B_{{\mathrm{2}}}}
 \\
-\Gamma  \vdash  \ottnt{v_{{\mathrm{3}}}}  \ottsym{:}  \ottkw{Db} \, \ottsym{(}  \ottkw{Dict} \, \ottsym{(}  \Delta_{{\mathrm{3}}}  \ottsym{,}  \ottnt{v_{{\mathrm{4}}}}  \Rightarrow  \ottnt{A}  \ottsym{)}  \ottsym{)}
+\Gamma  \vdash  \ottnt{v_{{\mathrm{3}}}}  \ottsym{:}  \ottkw{Db} \, \ottsym{(}  \ottkw{Dict} \, \ottsym{(}   \Delta_{{\mathrm{3}}} ,  \ottnt{v_{{\mathrm{4}}}} \mapsto \ottnt{A}   \ottsym{)}  \ottsym{)}
 \\
 \Gamma  \vdash  \ottnt{v_{{\mathrm{4}}}}  \ottsym{:}  \ottnt{B_{{\mathrm{4}}}}
 }
-{\Gamma  \vdash   \texttt{joinDb}_{  \texttt{!}  }~ \ottnt{v_{{\mathrm{1}}}} ~ \ottnt{v_{{\mathrm{2}}}} ~ \ottnt{v_{{\mathrm{3}}}} ~ \ottnt{v_{{\mathrm{4}}}}   \ottsym{:}  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \ottsym{(}  \ottkw{Dict} \, \ottsym{(}  \Delta_{{\mathrm{1}}}  \ottsym{,}  \ottnt{v_{{\mathrm{2}}}}  \Rightarrow  \ottnt{A}  \ottsym{,}  \Delta_{{\mathrm{3}}}  \ottsym{,}  \ottnt{v_{{\mathrm{4}}}}  \Rightarrow  \ottnt{A}  \ottsym{)}  \ottsym{)}  \ottsym{)}}
+{\Gamma  \vdash   \texttt{joinDb}_{  \texttt{!}  }~ \ottnt{v_{{\mathrm{1}}}} ~ \ottnt{v_{{\mathrm{2}}}} ~ \ottnt{v_{{\mathrm{3}}}} ~ \ottnt{v_{{\mathrm{4}}}}   \ottsym{:}  \ottkw{F} \, \ottsym{(}  \ottkw{Db} \, \ottsym{(}  \ottkw{Dict} \, \ottsym{(}    \Delta_{{\mathrm{1}}} ,  \ottnt{v_{{\mathrm{2}}}} \mapsto \ottnt{A}   ,   \Delta_{{\mathrm{3}}} ,  \ottnt{v_{{\mathrm{4}}}} \mapsto \ottnt{A}    \ottsym{)}  \ottsym{)}  \ottsym{)}}
 \end{mathpar}
 \caption{Selected typing rules}
 \end{figure}
-
-\paragraph{Library primitives: Syntax \& Dynamics.}
-

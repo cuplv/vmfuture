@@ -16,12 +16,25 @@ J :: 'J_' ::= {{ com Custom judgement forms; for TeX }}
  | Ctx |- e : C :: :: ty_e_c
  | Ctx |- v : A :: :: ty_v_a
 
+ | Ctx |- e => C :: :: ty_syn_e
+ | Ctx |- e <= C :: :: ty_chk_e
+ | Ctx |- v <= A :: :: ty_chk_v
+ | Ctx |- v => A :: :: ty_syn_v
+
+ | Ctx |- pe => C :: :: ty_syn_pe
+ | Ctx |- pe <= C :: :: ty_chk_pe
+ | Ctx |- pv <= A :: :: ty_chk_pv
+ | Ctx |- pv => A :: :: ty_syn_pv
+
+ | A <consis> B :: :: v_consis {{ tex [[A]] \approx_{\textsf{?} } [[B]] }}
+ | C <consis> D :: :: e_consis {{ tex [[C]] \approx_{\textsf{?} } [[D]] }}
+
 grammar
 A, B :: 'A_' ::= {{ com Value Types }}
  | ?      :: :: top
  | Num    :: :: num
  | Str    :: :: str
- | Dict Delta :: :: dict
+ | Dict Deltas :: :: dict
  | Ref A :: :: ref
  | U C   :: :: u
  | ( A ) :: S :: paren
@@ -31,9 +44,13 @@ A, B :: 'A_' ::= {{ com Value Types }}
 
 Delta {{ tex \Delta }} :: 'Delta_' ::= {{ com Dictionary types: Internal structure}}
  | emp             :: :: emp
- | Delta , v => A  :: :: cons
+ | Delta , v => A  :: :: cons {{ tex [[Delta]], [[v]]\mapsto[[A]] }}
  | ( Delta )       :: S :: paren
- | Delta1 , Delta2 :: :: append
+
+Deltas {{ tex \Delta }} :: 'Deltas_' ::=
+ | Delta             :: :: one
+ | Deltas1 , Deltas2 :: :: append {{ tex [[Deltas1]] , [[Deltas2]] }}
+ | ( Deltas )        :: S :: paren
 
 C, D :: 'C_' ::= {{ com Computation Types }}
  | A -> C :: :: arr
@@ -61,7 +78,7 @@ pe {{ tex \dot{e} }} :: 'pe_' ::= {{ com Pre-Expressions }}
  | get v             :: :: get
  | ext v1 v2 v3      :: :: ext
  | proj oa v1 v2        :: :: proj {{ tex [[v1]]\left[ [[v2]] \right]_{[[oa]]} }}
- | v ?: av           :: :: chk
+ | e ?: ae           :: :: chk
 
  | openDb oa v :: :: openDb           {{ tex \texttt{openDb}_{[[oa]]}~[[v]] }}
  | filterDb oa  v1 v2 :: :: filterDb  {{ tex \texttt{filterDb}_{[[oa]]}~[[v1]]~[[v2]] }}
@@ -250,51 +267,54 @@ emp |- v4 : A2
 ------------------------------------------------------------------------------ :: joinDb
 Ctx |- joinDb ! v1 v2 v3 v4 : F (Db (Dict (Delta1, Delta2, v2 => B, v4 => B)))
 
-B <= A
-Ctx |- v : B  
------------------------ :: topE
-Ctx |- v ?: A : F A
+
+Ctx |- e : C
+------------------- :: Annot
+Ctx |- e ?: C : C
 
 defn
-C <= D
-:: :: topordc :: 'ord_'
-{{ tex [[C]] \subseteq_{\top} [[D]] }}
+C <consis> D
+:: :: consis :: 'ord_'
+{{ tex [[C]] \approx [[D]] }}
 by
 
-A <= B
+A <consis> B
 ------------ :: ret
-F A <= F B
+F A <consis> F B
 
-B <= A
-C <= D
+B <consis> A
+C <consis> D
 ----------------- :: arr
-A -> C <= B -> D
+A -> C <consis> B -> D
 
 
 defn
-A <= B
+A <consis> B
 :: :: topordv :: 'ord_'
-{{ tex [[A]] \subseteq_{\top} [[B]] }}
+{{ tex [[A]] \approx [[B]] }}
 by
 
--------------- :: Top
-A <= ?
+-------------- :: TopR
+A <consis> ?
 
-A <= B
------------- :: Db
-Db A <= Db B
+-------------- :: TopL
+? <consis> A
 
------------------------------ :: DictEmp
-Dict(emp) <= Dict(Delta) 
+A <consis> B
+------------------ :: Db
+Db A <consis> Db B
 
-A <= B
-Dict(Delta) <= Dict(Delta')
+----------------------------------- :: DictEmp
+Dict(emp) <consis> Dict(Delta) 
+
+A <consis> B
+Dict(Delta) <consis> Dict(Delta')
 ------------------------------------------------- :: DictCons
-Dict(Delta, v1 => A) <= Dict(Delta', v1 => B) 
+Dict(Delta, v1 => A) <consis> Dict(Delta', v1 => B) 
 
-C <= D
------------- :: thunk
-U C <= U D
+C <consis> D
+------------------ :: thunk
+U C <consis> U D
 
 defn
 Ctx |- v <~~ A
@@ -461,9 +481,9 @@ state --> state'
 :: :: state_step :: 'S_'
 by
 
-ctxify store |- v <~~ A
-------------------------------------------------------------------------- :: chk
-<store; stack; env; v ?: A> --> <store; stack; env; ret (pv @: A)>
+%ctxify store |- e <= C
+%------------------------------------------------------------------------- :: chk
+%<store; stack; env; e ?: C> --> <store; stack; env; C>
 
 --------------------------------------------------------------------------------------------- :: let
 <store; stack; env; let x = (pe1@:ae1) in e2> --> <store; stack :::: (env, x. e2); env; pe1>
@@ -515,6 +535,7 @@ env v1 ~> (dict (delta, v2' => v3) @: av)
 grammar
   terminals :: 'terminals_' ::=
     | =>       :: :: Rightarrow {{ tex \Rightarrow }}
+    | <=       :: :: Leftarrow {{ tex \Leftarrow }}
     | ?:       :: :: Annotquestion {{ tex \mathrel{ \texttt{?:} } }}
     | ::::     :: :: dubcolons {{ tex :: }}
     | Lam      :: :: Lambda   {{ tex \Lambda }}
@@ -570,7 +591,7 @@ grammar
     | /\       :: :: and      {{ tex \wedge }}
     | \/       :: :: or       {{ tex \vee }}
     | subseteq :: :: subseteq {{ tex \subseteq }}
-    | <=       :: :: le       {{ tex \le }}
+%    | <=       :: :: le       {{ tex \le }}
     | -|       :: :: dashv    {{ tex \dashv }}
     | |-       :: :: vdash    {{ tex \vdash }}
     | ||-       :: :: vvdash    {{ tex \Vdash }}

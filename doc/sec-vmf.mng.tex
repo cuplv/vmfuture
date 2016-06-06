@@ -1,0 +1,372 @@
+\section{VMF Semantics}
+
+\begin{figure}
+\begin{grammar}
+  Expr.     & $[[e]]$& $\bnfas$& $[[pe @: ae]]$ & Annotated pre-expression
+  \\
+  Pre-Expr. & $[[pe]]$ & $\bnfas$ & $[[force v]]$ & Unsuspend (force) thunk
+  \\ &&& $\bnfaltbrk [[lam x. e]]$ & Function abstraction
+  \\ &&& $\bnfaltbrk [[ e v ]]$ & Function application
+  \\ &&& $\bnfaltbrk [[let x = e1 in e2]]$ & Bind computed value
+  \\ &&& $\bnfaltbrk [[ret v]]$ & Produce a value
+  \\ &&& $\bnfaltbrk [[ref v]]$ & Allocate store reference
+  \\ &&& $\bnfaltbrk [[set v1 v2]]$ & Store mutation
+  \\ &&& $\bnfaltbrk [[get v]]$ & Store projection
+  \\ &&& $\bnfaltbrk [[ext v1 v2 v3]]$ & Dictionary extension
+  \\ &&& $\bnfaltbrk [[proj oa v1 v2]]$ & Dictionary projection
+  \\ &&& $\bnfaltbrk [[e ?: ae]]$ & Annotation Ascription
+  \\[2px]
+  Value    & $[[v]]$& $\bnfas$& $[[pv @: av]]$ & Annotated pre-value
+  \\
+  Pre-Val. & $[[pv]]$ 
+  &$\bnfas$&        $[[othunk e]]$    & Open thunk
+  \\ &&& $\bnfaltbrk [[thunk env e]]$ & Closed thunk
+  \\ &&& $\bnfaltbrk [[dict delta]]$  & Dictionary
+  \\ &&& $\bnfaltbrk [[num n]]$ & Number
+  \\ &&& $\bnfaltbrk [[str s]]$ & String
+  \\ &&& $\bnfaltbrk [[loc l]]$ & Store location
+  \\ &&& $\bnfaltbrk [[()]]$    & Unit value
+  \\ &&& $\bnfaltbrk [[x]]$     & Value variable
+  \\
+  Dict. & $[[ delta ]]$
+  &$\bnfas$& $[[ emp ]]~|~[[ delta , v1 => v2 ]]$ & Dictionaries of values
+  \\[2mm]
+  Annot.
+    & $[[oa]]$ & $\bnfas$ & $[[ ? ]]~|~[[ ! ]]$ & Uncertain vs. verified
+  \\
+    & $[[av]]$ & $\bnfas$ & $\cdots$ & Value annotation
+  \\
+    & $[[ae]]$ & $\bnfas$ & $\cdots$ & Expression annotation
+
+\end{grammar}
+\caption{Syntax of VMF Programs}
+\label{fig-syntax}
+\end{figure}
+
+\subsection{VMF Syntax \& Dynamics}
+
+
+\paragraph{VM State syntax.}
+
+\begin{figure}
+  \begin{grammar}
+    State
+    & $[[state]]$ & $\bnfas$ & $[[ <store; stack; env; pe> ]]$ &
+    \\
+    Store
+    & $[[store]]$ & $\bnfas$ & $[[ emp ]]~|~[[ store, l => v ]]$ & Maps locations to values
+    \\
+    Stack
+    & $[[stack]]$ & $\bnfas$ & $[[ halt ]]$ & Empty stack
+    \\
+    &&& $\bnfaltbrk [[ stack :::: (env, x.e)  ]]$ & Waiting for return
+    \\
+    &&& $\bnfaltbrk [[ stack :::: v  ]]$ & Fun. application argument
+    \\
+    Environment
+    & $[[env]]$   & $\bnfas$ & $[[ emp ]]~|~[[ env,   x => v ]]$ & Maps variables to values
+  \end{grammar}
+  \caption{VM State Definitions}
+  \label{fig:state}
+\end{figure}
+
+
+\paragraph{VM Dynamics.}
+
+
+\begin{figure*}
+\small
+\[
+\begin{array}{rclcl}
+[[ <store; stack; env; let x = (pe1@:ae1) in e2> --|--> <store; stack :::: (env, x. e2); env; pe1> ]]
+\\
+[[ <store; stack :::: (env, x.(pe@:ae)); env'; ret v> --|--> <store; stack; env, x => v'; pe> ]]
+& \textrm{when} & [[ env v ~> v' ]]
+\\
+[[ <store; stack; env; (pe@:ae) v> --|--> <store; stack :::: v'; env; pe> ]]
+& \textrm{when} & [[ env v ~> v' ]]
+\\
+[[ <store; stack :::: v; env; lam x.(pe@:ae)> --|--> <store; stack; env, x => v; pe> ]]
+\\
+[[ <store; stack; env; force v> --|--> <store; stack; env'; pe> ]]
+& \textrm{when} & [[ env v ~> (thunk env' (pe@:ae) @: av) ]]
+\\
+[[ <store; stack; env; ref v> --|--> <store, l => v; stack; env; ret (loc l @: ?)> ]]
+& \textrm{when} & [[ l notin store ]]
+\\
+[[ <store; stack; env; set v1 v2> --|--> <store, l => v2'; stack; env; ret (() @: ?)> ]]
+& \textrm{when} & [[ env v1 ~> (loc l @: av) ]]~\textrm{and}~[[ env v2 ~> v2' ]]
+\\
+[[ <store, l=>v2; stack; env; get v1> --|--> <store, l=>v2; stack; env; ret v2> ]]
+& \textrm{when} & [[ env v1 ~> (loc l @: av) ]]
+\\
+[[ <store; stack; env; ext v1 v2 v3> --|--> <store; stack; env; ret (dict (delta, v2'=>v3')@:?)> ]]
+& \textrm{when} & 
+[[ env v1 ~> (dict delta @: av) ]],~[[ env v2 ~> v2' ]]~\textrm{and}~[[ env v3 ~> v3' ]]
+\\
+[[ <store; stack; env; proj ! v1 v2> --|--> <store; stack; env; ret v3> ]]
+& \textrm{when} & [[ env v2 ~> v2' ]]~\textrm{and}~[[ env v1 ~> (dict (delta, v2' => v3) @: av) ]]
+\end{array}
+\]
+\caption{Small-step, abstract machine semantics of VMF}
+\end{figure*}
+
+\clearpage
+
+\section{Gradual Typing for Simple Databases}
+
+\begin{figure}
+  \begin{grammar}
+  \end{grammar}
+\end{figure}
+
+\begin{figure}
+  \begin{grammar}
+  & $e$
+    &$\bnfas$& $\cdots$ & Existing forms (\Figref{fig-syntax})
+    \\ &&& $\bnfaltbrk [[ openDb oa v ]]$ & Open database by file path
+    \\ &&& $\bnfaltbrk [[ filterDb oa v1 v2 ]]$ & Filter DB by predicate
+    \\ &&& $\bnfaltbrk [[ joinDb oa v1 v2 v3 v4 ]]$ & Join DBs using keys' value
+\end{grammar}
+\caption{Database Library Forms}
+\label{fig:db-syntax}
+\end{figure}
+
+
+\begin{figure}
+\begin{grammar}
+  Annotations
+    & $[[av]]$ & $\bnfas$ & $[[A]]$ & Value annotation
+  \\
+    & $[[ae]]$ & $\bnfas$ & $[[C]]$ & Expression annotation
+  \\
+  Value Types  & $[[A]], [[B]]$& $\bnfas$& 
+  $ [[U C]]$& Thunked computation
+  \\ &&& $\bnfaltbrk [[Dict Delta]]$& Dictionary
+  \\ &&& $\bnfaltbrk [[Num]]$& Number
+  \\ &&& $\bnfaltbrk [[Str]]$& String
+  \\ &&& $\bnfaltbrk [[Ref A]]$& Store reference
+  \\ &&& $\bnfaltbrk [[1]]$& Unit
+  \\ &&& $\bnfaltbrk [[?]]$& Unknown value type
+  \\ &&& $\bnfaltbrk [[Db A]]$& Database; multiset of $[[A]]$s
+  \\[2mm]
+  Dictionary & $[[Delta]]$ & $\bnfas$ & \multicolumn{2}{l}{$[[emp]]~|~[[Delta, v => A]]$~~~\textrm{Maps values to types}}
+  \\[2mm]
+  Computation & $[[C]], [[D]]$ & $\bnfas$& 
+  %\\ &&& 
+  $[[A -> C]]$ & Function abstraction
+  \\ 
+  Types
+  &&& $\bnfaltbrk [[F A]]$ & Value production
+\end{grammar}
+\caption{Type Syntax: Annotations for Values and Expressions}
+\label{fig:types}
+\end{figure}
+
+
+\begin{figure}
+\small
+\begin{mathpar}
+\Infer{annot}
+{[[Ctx |- e <=  C]]}
+{[[Ctx |- e ?: C => C ]]}
+\and
+\Infer{sub}
+{[[Ctx |- e => C ]] 
+  \\ 
+  [[C <consis> D]]}
+{[[Ctx |- e <= D ]]}
+\and
+\Infer{lam}
+{[[Ctx, x : A |- e       <=      C]]}
+{[[Ctx        |- lam x.e <= A -> C]] }
+\and
+\Infer{app}
+{[[Ctx |- e => A -> C]]
+\\\\
+[[Ctx |- v <= A]]
+}
+{[[Ctx |- e v => C]]}
+\and
+\Infer{}
+{[[Ctx |- v1 => ?]]
+\\\\
+[[Ctx |- v2 => ?]]
+}
+{[[Ctx |- proj ? v1 v2 => F ?]] }
+\and
+\Infer{}
+{[[Ctx |- v1 => Dict (Delta, v2 => A)]]
+\\\\
+[[Ctx |- v2 => B]]
+}
+{[[Ctx |- proj ! v1 v2 => F A]] }
+\and
+\Infer{openDb?}
+{[[Ctx |- v => Str]]}
+{[[Ctx |- openDb ? v => F (Db ?)]]}
+\and
+\Infer{filterDb?}
+{[[Ctx |- v1 => Db ?]]
+\\
+[[Ctx |- v2 <= U(? -> F 2)]]
+}
+{[[Ctx |- filterDb ? v1 v2 => F (Db ?)]]}
+\and
+\Infer{filterDb!}
+{[[Ctx |- v1 => Db A]]
+\\
+[[Ctx |- v2 <= U(A -> F 2)]]
+}
+{[[Ctx |- filterDb ! v1 v2 => F (Db A)]]}
+\and
+\Infer{joinDb?}
+{[[Ctx |- v1 => Db ?]]
+\\
+[[Ctx |- v2 => B2]]
+\\\\
+[[Ctx |- v3 => Db ?]]
+\\
+[[Ctx |- v4 => B4]]
+}
+{[[Ctx |- joinDb ? v1 v2 v3 v4 => F (Db ?)]]}
+\and
+\Infer{joinDb!}
+{[[Ctx |- v1 => Db (Dict (Delta1, v2 => A))]]
+\\
+[[Ctx |- v2 => B2]]
+\\
+[[Ctx |- v3 => Db (Dict (Delta3, v4 => A))]]
+\\
+[[Ctx |- v4 => B4]]
+}
+{[[Ctx |- joinDb ! v1 v2 v3 v4 : F (Db (Dict (Delta1, v2 => A, Delta3, v4 => A)))]]}
+\end{mathpar}
+\caption{Selected typing rules}
+\end{figure}
+
+\paragraph{Library primitives: Syntax \& Dynamics.}
+
+\clearpage
+\appendix
+\section{Appendix}
+
+
+\paragraph{Program syntax: CBPV.}
+For economy of both implementation and reasoning, the syntax of VMF
+programs is directly insipired by that of the Call-by-Push-Value
+(CPBV) syntax and evaluation strategy~\cite{CBPV}.
+%
+CBPV is similar to CBV, except that unlike CBV, CBPV neatly separates
+the concept of a thunked computation from that of a lambda
+abstraction.
+%
+Like other administrative normal forms, CPBV also imposes a separation
+of values and computations, in terms of syntax and semantics.
+%
+Computations that eliminate values have value sub-terms.
+%
+In contrast to computation forms, value forms consist of (passive,
+non-doing) data types; specifically, here we consider variables
+(ranging over previously-defined values), primitives (viz., numbers
+and strings), records of values, store locations, open thunks that
+suspend a computation term as a value~($[[othunk e]]$) and thunks
+closed by an environment~($[[thunk env e]]$).
+
+Unlike values, computations consist of program terms that actively
+\emph{do things}, and for which the VM defines operational steps. For
+instance, field projection from a record value is a computation, since
+it eliminates a value (viz., the record that contains the projected
+field) and introduces a new one.
+%
+Though CBV treats lambdas as values, the distinctive quirk of CBPV is
+that function abstraction is a computation (not a value) and that it
+interacts with function applications via an ambient stack (hence,
+``call-by-\emph{push}-value''):
+%
+Function application~$[[e v]]$ uses a function abstraction by pushing
+an argument value~$v$ on this ambient stack and then running the
+function body~$e$.
+%
+Lambdas~$[[lam x.e]]$ abstract over a variable~$x$ by popping a value
+for~$x$ from this ambient stack.
+%
+Compared with CBV, the presence of this ambient stack streamlines the
+expression of currying.
+%
+Specifically, CBPV avoids the need for creating closures that
+represent the partially-applied lambdas in the curried series.
+%
+Below, we will augment these (standard) computations and values with
+computations over simple databases.
+
+\begin{figure}
+\small
+\begin{mathpar}
+\Infer{lam}
+{[[Ctx, x : A |- e       : C]]}
+{[[Ctx        |- lam x.e : A -> C]] }
+\and
+\Infer{app}
+{[[Ctx |- e : A -> C]]
+\\\\
+[[Ctx |- v : A]]
+}
+{[[Ctx |- e v : C]]}
+\and
+\Infer{proj?}
+{[[Ctx |- v1 : ?]]
+\\\\
+[[Ctx |- v2 : ?]]
+}
+{[[Ctx |- proj ? v1 v2 : F ?]] }
+\and
+\Infer{proj!}
+{[[Ctx |- v1 : Dict (Delta, v2 => A)]]
+\\\\
+[[Ctx |- v2 : B]]
+}
+{[[Ctx |- proj ! v1 v2 : F A]] }
+\and
+\Infer{openDb?}
+{[[Ctx |- v : Str]]}
+{[[Ctx |- openDb ? v : F (Db ?)]]}
+\and
+\Infer{filterDb?}
+{[[Ctx |- v1 : Db ?]]
+\\
+[[Ctx |- v2 : U(? -> F 2)]]
+}
+{[[Ctx |- filterDb ? v1 v2 : F (Db ?)]]}
+\and
+\Infer{filterDb!}
+{[[Ctx |- v1 : Db A]]
+\\
+[[Ctx |- v2 : U(A -> F 2)]]
+}
+{[[Ctx |- filterDb ! v1 v2 : F (Db A)]]}
+\and
+\Infer{joinDb?}
+{[[Ctx |- v1 : Db ?]]
+\\
+[[Ctx |- v2 : B2]]
+\\\\
+[[Ctx |- v3 : Db ?]]
+\\
+[[Ctx |- v4 : B4]]
+}
+{[[Ctx |- joinDb ? v1 v2 v3 v4 : F (Db ?)]]}
+\and
+\Infer{joinDb!}
+{[[Ctx |- v1 : Db (Dict (Delta1, v2 => A))]]
+\\
+[[Ctx |- v2 : B2]]
+\\
+[[Ctx |- v3 : Db (Dict (Delta3, v4 => A))]]
+\\
+[[Ctx |- v4 : B4]]
+}
+{[[Ctx |- joinDb ! v1 v2 v3 v4 : F (Db (Dict (Delta1, v2 => A, Delta3, v4 => A)))]]}
+\end{mathpar}
+\caption{Selected typing rules}
+\end{figure}
