@@ -161,7 +161,7 @@ computations over simple databases.
 \caption{Small-step, abstract machine semantics of VMF}
 \end{figure*}
 
-
+\section{Gradual Typing for Simple Databases}
 
 \begin{figure}
   \begin{grammar}
@@ -179,7 +179,33 @@ computations over simple databases.
 \caption{Database Library Forms}
 \end{figure}
 
-\section{Gradual Typing for Simple Databases}
+
+\begin{figure}
+\begin{grammar}
+  Annotations
+    & $a^\textsf{v}$ & $\bnfas$ & $\ottnt{A}$ & Value annotation
+  \\
+    & $a^\textsf{e}$ & $\bnfas$ & $\ottnt{C}$ & Expression annotation
+  \\
+  Value Types  & $\ottnt{A}, \ottnt{B}$& $\bnfas$& 
+  $ \ottkw{U} \, \ottnt{C}$& Thunked computation
+  \\ &&& $\bnfaltbrk \ottkw{Dict} \, \Delta$& Dictionary
+  \\ &&& $\bnfaltbrk \ottkw{Num}$& Number
+  \\ &&& $\bnfaltbrk \ottkw{Str}$& String
+  \\ &&& $\bnfaltbrk \ottkw{Ref} \, \ottnt{A}$& Store reference
+  \\ &&& $\bnfaltbrk \ottsym{1}$& Unit
+  \\ &&& $\bnfaltbrk \ottkw{Db} \, \ottnt{A}$& Database; multiset of $\ottnt{A}$s
+  \\[2mm]
+  Computation & $\ottnt{C}, \ottnt{D}$ & $\bnfas$& 
+  %\\ &&& 
+  $\ottnt{A}  \rightarrow  \ottnt{C}$ & Function abstraction
+  \\ 
+  Types
+  &&& $\bnfaltbrk \ottkw{F} \, \ottnt{A}$ & Value production
+\end{grammar}
+\caption{Type Syntax: Annotations for Values and Expressions}
+\end{figure}
+
 
 
 \paragraph{Library primitives: Syntax \& Dynamics.}
