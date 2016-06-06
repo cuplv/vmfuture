@@ -6,6 +6,13 @@ indexvar i {{ tex i }}, j {{ tex j }} ::= {{ lex numeral }}
 metavar l {{ tex \ell }} ::= {{ com store locations }}
 
 grammar
+J :: 'J_' ::= {{ com Custom judgement forms; for TeX }} 
+ | state --|--> state' :: :: step_table {{ tex [[state]] & \longrightarrow & [[state']] }}
+ | Ctx |- v <~~ A :: :: check_value
+ | env v ~> v' :: :: close_value {{ tex [[env]]([[v]])\,{=}\,[[v']] }}
+ | l notin store :: :: l_notin_store {{ tex [[l]] \not\in [[store]] }}
+
+grammar
 A, B :: 'A_' ::= {{ com Value Types }}
  | TopV   :: :: topv
  | Num    :: :: num
@@ -65,7 +72,7 @@ oa {{ tex a^{\textsf{op} } }} :: 'oa_' ::= {{ com Operation annotation }}
 
 env {{ tex \rho }} :: 'env_' ::=
  | emp          :: :: emp
- | env , x => v :: :: cons
+ | env , x => v :: :: cons {{ tex [[env]] , [[x]]\mapsto[[v]] }}
 
 stack {{ tex \kappa }} :: 'stack_' ::=
  | halt                         :: :: halt
@@ -74,7 +81,7 @@ stack {{ tex \kappa }} :: 'stack_' ::=
 
 store {{ tex \mu }} :: 'store_' ::=
  | emp             :: :: emp
- | store , l => v  :: :: cons
+ | store , l => v  :: :: cons {{ tex [[store]] , [[l]]\mapsto[[v]] }}
 
 state {{ tex \sigma }} :: '' ::=
  | < store ; stack ; env ; pe > :: :: state {{ tex \left< [[store]]; [[stack]]; [[env]]; [[pe]] \right> }}
@@ -96,7 +103,7 @@ pv {{ tex \dot{v} }} :: 'pv_' ::=  {{ com Pre-Values }}
 
 delta {{ tex \delta }} :: 'delta_' ::= {{ com Dictionary values: Internal structure }}
  | emp               :: :: emp
- | delta , v1 => v2  :: :: cons
+ | delta , v1 => v2  :: :: cons {{ tex [[delta]] , [[v1]] \mapsto [[v2]] }}
  | ( delta )         :: :: paren
 
 Ctx {{ tex \Gamma }} :: 'Ctx_' ::= 
@@ -446,12 +453,10 @@ l notin store
 {{ tex [[l]] \not\in [[store]] }}
 by
 
-
 defn
 state --> state'
 :: :: state_step :: 'S_'
 by
-
 
 ctxify store |- v <~~ A
 ------------------------------------------------------------------------- :: chk
