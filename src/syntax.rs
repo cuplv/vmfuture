@@ -95,7 +95,9 @@ pub mod obj {
     Num(isize),
     Str(String),
     Loc(Loc),
-    Var(Var),    
+    Var(Var),
+    Inj1(Val), // 
+    Inj2(Val), // Constructors for sum-typed values    
   }
   /// Values: A Pre-Value, along with an annotation
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
@@ -126,6 +128,7 @@ pub mod refl {
   pub enum VTyp {
     Unk,
     Num, Str, Bool,
+    Sum(Box<VTyp>, Box<VTyp>), // A Sum type could be either of two types
     Dict(Box<Dict>),
     Db(Box<VTyp>), // "Database" (A multiset of some kind)
     Ref(Box<VTyp>),
