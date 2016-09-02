@@ -10,8 +10,8 @@ use std::rc::Rc;
 pub fn vtyp_consis(vtyp1:refl::VTyp, vtyp2:refl::VTyp) -> bool {
   use syntax::refl::VTyp::*;
   match (vtyp1, vtyp2) {
-    (Top, _) => true,
-    (_, Top) => true,
+    (Unk, _) => true,
+    (_, Unk) => true,
     (Num, Num) => true,
     (Str, Str) => true,
     (Bool,Bool) => true,
@@ -42,8 +42,8 @@ pub fn vtyp_consis(vtyp1:refl::VTyp, vtyp2:refl::VTyp) -> bool {
 pub fn ctyp_consis(ctyp1:refl::CTyp, ctyp2:refl::CTyp) -> bool {
   use syntax::refl::CTyp::*;
   match (ctyp1, ctyp2) {
-    (Top, _  ) => true,
-    (_  , Top) => true,
+    (Unk, _  ) => true,
+    (_  , Unk) => true,
     (F(a), F(b)) => vtyp_consis(*a, *b),
     (Arr(a,c), Arr(b,d)) => vtyp_consis(*a, *b) && ctyp_consis(*c,*d),
     _ => false,      
@@ -291,7 +291,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
       }
     }
     PExp::Prim(Prim::Halt) => { 
-      Some((CTyp::Top, PExp::Prim(Prim::Halt))) 
+      Some((CTyp::Unk, PExp::Prim(Prim::Halt))) 
     }
     PExp::Prim(Prim::Eq(v1, v2)) => {
       match (syn_value(store, tenv.clone(), v1),
@@ -307,7 +307,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
       match chk_value(store, tenv, v, refl::VTyp::Str) {
         None => None,
         Some(v) => {
-          Some(( CTyp::F(Box::new(VTyp::Db(Box::new(VTyp::Top)))), 
+          Some(( CTyp::F(Box::new(VTyp::Db(Box::new(VTyp::Unk)))), 
                  PExp::Prim(Prim::DbOpen(v) )))
         },
       }
@@ -337,8 +337,8 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
         ( Some((v1t, v1)), Some((_v2t, v2)), 
           Some((v3t, v3)), Some((_v4t, v4)) ) => {          
           match(v1t.clone(), v3t.clone()) {
-            (VTyp::Db(ref a), VTyp::Db(ref b)) if **a == VTyp::Top || **b == VTyp::Top => {
-              let f_db = CTyp::F( Box::new(VTyp::Db( Box::new(VTyp::Top) )) ) ;
+            (VTyp::Db(ref a), VTyp::Db(ref b)) if **a == VTyp::Unk || **b == VTyp::Unk => {
+              let f_db = CTyp::F( Box::new(VTyp::Db( Box::new(VTyp::Unk) )) ) ;
               Some(( f_db, PExp::Prim(Prim::DbJoin(v1, v2, v3, v4)) ))
             },
             (VTyp::Db(a), VTyp::Db(b)) => {
@@ -416,11 +416,11 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
     PExp::Proj(v1, v2) => {
       match syn_value(store, tenv.clone(), v1) {
         None => None,
-        Some((VTyp::Top, v1)) => {
+        Some((VTyp::Unk, v1)) => {
           match syn_value(store, tenv, v2) {
             None => None,
             Some((_v2t, v2)) => {
-              Some((CTyp::F(Box::new(VTyp::Top)), // imprecise
+              Some((CTyp::F(Box::new(VTyp::Unk)), // imprecise
                     PExp::Proj(v1, v2)))                  
             }
           }          

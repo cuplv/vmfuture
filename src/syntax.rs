@@ -118,13 +118,13 @@ pub mod refl {
   
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum CTyp {
-    Top, 
+    Unk, 
     F(Box<VTyp>), // Ret
     Arr(Box<VTyp>, Box<CTyp>), // ->
   }
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum VTyp {
-    Top,
+    Unk,
     Num, Str, Bool,
     Dict(Box<Dict>),
     Db(Box<VTyp>), // "Database" (A multiset of some kind)

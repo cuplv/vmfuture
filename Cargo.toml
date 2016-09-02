@@ -9,7 +9,7 @@ authors = ["Matthew Hammer <matthew.hammer@colorado.edu>",
 csv = "0.14"
 
 [dependencies.adapton]
-path = "/Users/hammer/adapton"
-# git = "https://github.com/cuplv/adapton.rust"
-# branch = "dev"
+# path = "/Users/hammer/adapton"
+git = "https://github.com/cuplv/adapton.rust"
+branch = "dev"
 
