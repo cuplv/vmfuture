@@ -95,6 +95,7 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
   else {
     let st = match st.pexp {
     	//TODO: implement for Case. Just switch exp to a Let for case 1 or 2 depending on Inj1/Inj2?
+      PExp::Case(_,_,_) => { panic!("") }
       PExp::Prim(prim) => {
         match prim {
           Prim::Halt => { return Err(State{pexp:PExp::Ret(ounit!()), ..st}) }
