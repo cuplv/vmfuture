@@ -7,6 +7,7 @@ metavar l {{ tex \ell }} ::= {{ com store locations }}
 
 grammar
 J :: 'J_' ::= {{ com Custom judgement forms; for TeX }} 
+ | state --> state' :: :: step {{ tex [[state]] \longrightarrow [[state']] }}
  | state --|--> state' :: :: step_table {{ tex [[state]] & \longrightarrow & [[state']] }}
  | Ctx |- v <~~ A :: :: check_value
  | env v ~> v' :: :: close_value {{ tex [[env]]([[v]])\,{=}\,[[v']] }}
@@ -26,20 +27,32 @@ J :: 'J_' ::= {{ com Custom judgement forms; for TeX }}
  | Ctx |- pv <= A :: :: ty_chk_pv
  | Ctx |- pv => A :: :: ty_syn_pv
 
+ | Ctx1 |- env => Ctx2 :: :: env_syn_ctx
+ | Ctx |- pe => C    :: :: env_syn_c
+ | Ctx |- stack <= C :: :: stack_chk
+ | state ok          :: :: state_ok
+
+ | meta me state ~~> state' :: :: rcc {{ tex [[me]] ([\![ [[state]] ]\!]) \Downarrow_{\textsf{meta} } [\![ [[ state' ]] ]\!] }}
+
  | A <consis> B :: :: v_consis {{ tex [[A]] \approx_{\textsf{?} } [[B]] }}
  | C <consis> D :: :: e_consis {{ tex [[C]] \approx_{\textsf{?} } [[D]] }}
+
+ | Deltas1 = Deltas2 :: :: Delta_eq
+ | A notin B :: :: type_notin_type {{ tex [[A]] \notin [[B]] }}
 
 grammar
 A, B :: 'A_' ::= {{ com Value Types }}
  | ?      :: :: top
  | Num    :: :: num
  | Str    :: :: str
- | Dict Deltas :: :: dict
+ | Dict Deltas :: :: dict 
+%{{ tex \left<\!\left< [[Deltas]] \right>\!\right> }}
  | Ref A :: :: ref
  | U C   :: :: u
  | ( A ) :: S :: paren
  | 1     :: S :: unit
- | 2     :: S :: bool
+ | 2     :: S :: bool2
+ | Bool  :: S :: bool
  | Db A  ::   :: db
 
 Delta {{ tex \Delta }} :: 'Delta_' ::= {{ com Dictionary types: Internal structure}}
@@ -59,13 +72,17 @@ C, D :: 'C_' ::= {{ com Computation Types }}
 
 ae {{ tex a^\textsf{e} }} :: 'ae_' ::= {{ com Annotations for expressions }}
  | C :: :: c
+ | __ :: :: underscore {{ tex \_ }}
 
 av {{ tex a^\textsf{v} }} :: 'av_' ::= {{ com Anotations for values }}
  | A :: :: a
+ | __ :: :: underscore {{ tex \_ }}
 
 e :: 'e_' ::= {{ com Expressions: Annotated pre-expressions }}
  | pe @: ae :: :: e {{ tex  [[pe]]~\texttt{@:}~[[ae]] }}
  | ( e )    :: S :: paren
+
+me {{ tex e_\textsf{m} }} :: 'me_' ::= {{ com Meta-Level Expressions }}
 
 pe {{ tex \dot{e} }} :: 'pe_' ::= {{ com Pre-Expressions }}
  | e v               :: :: app
@@ -77,8 +94,9 @@ pe {{ tex \dot{e} }} :: 'pe_' ::= {{ com Pre-Expressions }}
  | set v1 v2         :: :: set
  | get v             :: :: get
  | ext v1 v2 v3      :: :: ext
- | proj oa v1 v2        :: :: proj {{ tex [[v1]]\left[ [[v2]] \right]_{[[oa]]} }}
- | e ?: ae           :: :: chk
+ | proj oa v1 v2     :: :: proj {{ tex [[v1]]\left[ [[v2]] \right]_{[[oa]]} }}
+ | e ?: ae           :: :: assert
+ | rcc me e          :: :: rcc 
 
  | openDb oa v :: :: openDb           {{ tex \texttt{openDb}_{[[oa]]}~[[v]] }}
  | filterDb oa  v1 v2 :: :: filterDb  {{ tex \texttt{filterDb}_{[[oa]]}~[[v1]]~[[v2]] }}
@@ -105,10 +123,12 @@ store {{ tex \mu }} :: 'store_' ::=
 
 state {{ tex \sigma }} :: '' ::=
  | < store ; stack ; env ; pe > :: :: state {{ tex \left< [[store]]; [[stack]]; [[env]]; [[pe]] \right> }}
+ | < store ; stack ; env | pe > :: :: state_align {{ tex \left< [[store]]; [[stack]]; [[env]] \right. & \left. [[pe]] \right> }}
 
 v :: 'v_' ::= {{ com Values: Annotated Pre-Values }}
  | pv @: av :: :: v {{ tex  [[pv]]~\texttt{@:}~[[av]] }}
  | ( v )    :: S :: paren
+ | lookup env v :: M :: env_lookup {{ tex [[env]]([[v]]) }}
 
 pv {{ tex \dot{v} }} :: 'pv_' ::=  {{ com Pre-Values }}
  | othunk e      :: :: othunk
@@ -117,9 +137,12 @@ pv {{ tex \dot{v} }} :: 'pv_' ::=  {{ com Pre-Values }}
  | num n         :: :: num
  | str s         :: :: str
  | loc l         :: :: loc
+ | bool b        :: :: bit
  | x             :: :: x
  | ()            :: S :: unit
  | ( pv )        :: S :: paren
+
+b :: 'b_' ::=  {{ com Bits }}
 
 delta {{ tex \delta }} :: 'delta_' ::= {{ com Dictionary values: Internal structure }}
  | emp               :: :: emp
@@ -394,11 +417,11 @@ by
 ----------------- :: emp
 Ctx |- halt <~~ C
 
-Ctx |- stack <~~ C
-Ctx |- env ~~> Ctx
-Ctx, x:A |- e : C
+Ctx1 |- stack <~~ C
+Ctx1 |- env ~~> Ctx2
+Ctx2, x:A |- e : C
 ------------------------------------- :: let
-Ctx |- stack :::: (env, x.e) <~~ F A
+Ctx1 |- stack :::: (env, x.e) <~~ F A
 
 Ctx |- v : A
 Ctx |- stack <~~ C
@@ -477,13 +500,20 @@ l notin store
 by
 
 defn
+rcc ( me , state ) ~~> state'
+:: :: dometa_step :: ''
+{{ tex [\![ [[state]] ]\!] \vdash [[me]] \Downarrow_{\textsf{rcc} } state'  }}
+by
+
+defn
 state --> state'
 :: :: state_step :: 'S_'
 by
 
-%ctxify store |- e <= C
-%------------------------------------------------------------------------- :: chk
-%<store; stack; env; e ?: C> --> <store; stack; env; C>
+
+rcc (me, <store; stack; env; pe>) ~~> state'
+------------------------------------------------------------------------- :: chk
+<store; stack; env; rcc me (pe@:ae)> --> state'
 
 --------------------------------------------------------------------------------------------- :: let
 <store; stack; env; let x = (pe1@:ae1) in e2> --> <store; stack :::: (env, x. e2); env; pe1>

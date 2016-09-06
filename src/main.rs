@@ -1,12 +1,12 @@
 extern crate adapton;
 
-mod syntax;
+pub mod syntax;
 
 #[macro_use]
-mod macros;
+pub mod macros;
 
-mod typing;
-mod dynamics;
+pub mod typing;
+pub mod dynamics;
 
 use syntax::{obj,refl};
 use adapton::collections::*;
