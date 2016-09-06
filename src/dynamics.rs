@@ -26,6 +26,7 @@ pub fn is_final(exp:&obj::PExp) -> bool {
 }
 
 pub fn close_pval(env:&obj::Env, v:obj::PVal) -> obj::PVal {
+	//TODO: implement close_pval for Inj1/Inj2
   use syntax::obj::PVal::*;
   match v {
     Db(db0) => {
@@ -47,7 +48,9 @@ pub fn close_pval(env:&obj::Env, v:obj::PVal) -> obj::PVal {
     Var(x)        => match map_find(env, &x) {
       Some(v)     => *v.pval,
       None        => panic!("stuck: close_pval: Unbound variable: `{}'", x)
-    }
+    },
+    Inj1(v)       => Inj1(close_val(env, v)),
+    Inj2(v)       => Inj2(close_val(env, v)),
   }
 }
 
@@ -91,6 +94,7 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
   }
   else {
     let st = match st.pexp {
+    	//TODO: implement for Case. Just switch exp to a Let for case 1 or 2 depending on Inj1/Inj2?
       PExp::Prim(prim) => {
         match prim {
           Prim::Halt => { return Err(State{pexp:PExp::Ret(ounit!()), ..st}) }

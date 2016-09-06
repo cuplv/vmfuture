@@ -17,6 +17,7 @@ example : obj::Exp
   
   Impl qs:
   extend syn_pexp, syn_pvalue, chk_pvalue, chk_pexp?
+  Val = PVal + annotation, can Vals have type Unk? If not should Inj1/Inj2 take PVals?
 */
 
 extern crate adapton;
