@@ -14,6 +14,9 @@ example : obj::Exp
   why the exp wrapping pexp/val wrapping pval pattern in typing.rs (nvm it's annotations)
   why pub vann:super::refl::VAnn =   pub type VAnn = VTyp; (ditto CAnn/CTyp)
   CTyp? continuation type? what is Arr, F, Unk
+  
+  Impl qs:
+  extend syn_pexp, syn_pvalue, chk_pvalue, chk_pexp?
 */
 
 extern crate adapton;

@@ -78,6 +78,7 @@ pub mod obj {
     Ext(Val,Val,Val),
     Let(Var,Exp,Exp),    
     Prim(Prim),
+    Case(Val,Exp,Exp),	//Case breakdown for sum types
   }
   /// Expressions: A Pre-Expression, along with an annotation
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
