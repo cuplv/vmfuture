@@ -74,6 +74,7 @@ fn listing_1_ver_a() {
     };
   let st = dynamics::initial_state(*example.pexp);
   drop(dynamics::eval(st));
+  panic!("")
 }
 
 #[allow(dead_code)]

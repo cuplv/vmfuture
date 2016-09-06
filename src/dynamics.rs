@@ -98,7 +98,7 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
       PExp::Case(v,x,e1,y,e2) => { 
         match *v.pval {
           PVal::Inj1(a) => {
-            State{pexp:*e1.pexp, env:list_push(st.env,(x,a)), ..s}t
+            State{pexp:*e1.pexp, env:list_push(st.env,(x,a)), ..st}
           }
           PVal::Inj2(b) => panic!(""),
           _ => panic!("stuck: case scruntinee is not an injection")
