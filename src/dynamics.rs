@@ -94,13 +94,14 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
   }
   else {
     let st = match st.pexp {
-    	//TODO: implement for Case. Just switch exp to a Let for case 1 or 2 depending on Inj1/Inj2?
       PExp::Case(v,x,e1,y,e2) => { 
         match *v.pval {
           PVal::Inj1(a) => {
             State{pexp:*e1.pexp, env:list_push(st.env,(x,a)), ..st}
           }
-          PVal::Inj2(b) => panic!(""),
+          PVal::Inj2(b) => {
+          	State{pexp:*e2.pexp, env:list_push(st.env,(y,b)), ..st}
+          }
           _ => panic!("stuck: case scruntinee is not an injection")
         }
       }

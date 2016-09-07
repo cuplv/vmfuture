@@ -1,25 +1,3 @@
-/*
-JPW comments/understanding
-example : obj::Exp
-  //create initial state w/empty stack/store/env, but the given pexp
-  let st = dynamics::initial_state(*example.pexp);
-  //first do_pass: calls typing::chk_state(st)
-  let st = dynamics::eval(st);
-  let y2 = map_find(&st.env, &"y2".to_string());
-  assert!( y2 == Some(ostr!("banana")) )
-  
-  
-  
-  Code qs:
-  why the exp wrapping pexp/val wrapping pval pattern in typing.rs (nvm it's annotations)
-  why pub vann:super::refl::VAnn =   pub type VAnn = VTyp; (ditto CAnn/CTyp)
-  CTyp? continuation type? what is Arr, F, Unk
-  
-  Impl qs:
-  extend syn_pexp, syn_pvalue, chk_pvalue, chk_pexp?
-  Val = PVal + annotation, can Vals have type Unk? If not should Inj1/Inj2 take PVals?
-*/
-
 extern crate adapton;
 
 mod syntax;
