@@ -236,6 +236,20 @@ pub fn chk_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal, vtyp:refl
     //   None    => false, 
     //   Some(v) => (v.vann == *a),
     // }}
+    (VTyp::Sum(a, b), PVal::Inj1(v))	=> { //check if v is of type A
+	    let vc = v.clone(); //necessary to remove "used after partial move" error?
+    	match chk_pvalue(store, tenv, *vc.pval, *a) {
+    		Some(k)	=> Some(PVal::Inj1(v)),
+    		None	=> None
+    	}
+    }
+    (VTyp::Sum(a, b), PVal::Inj2(v))	=> { //check if v is of type B
+	    let vc = v.clone();
+	    match chk_pvalue(store, tenv, *vc.pval, *b) {
+	    	Some(k) => Some(PVal::Inj2(v)),
+	    	None	=> None
+	    }
+    }
     (vt, v)        => panic!("chk_pvalue {:?} {:?}", vt, v),
   }
 }

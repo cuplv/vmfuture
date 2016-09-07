@@ -1,3 +1,10 @@
+/* Sum_type_extension TODOs:
+Verify correctness of close_pval implementation (dynamics)
+Write chk_pval for Inj1/Inj2
+Write chk_pexp and syn_pexp for Case
+Write working testcase and submit pull request
+*/
+
 extern crate adapton;
 
 mod syntax;

@@ -26,7 +26,6 @@ pub fn is_final(exp:&obj::PExp) -> bool {
 }
 
 pub fn close_pval(env:&obj::Env, v:obj::PVal) -> obj::PVal {
-	//TODO: implement close_pval for Inj1/Inj2
   use syntax::obj::PVal::*;
   match v {
     Db(db0) => {
