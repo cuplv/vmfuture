@@ -3,6 +3,11 @@ Verify correctness of close_pval implementation (dynamics)
 Write chk_pval for Inj1/Inj2
 Write chk_pexp and syn_pexp for Case
 Write working testcase and submit pull request
+
+Qs:
+chk_pexp takes CTyp to check against, what am I checking against?
+Assume context gives type for sum value
+how to syn_pexp for Case when that requires a sum type to check the val against? (reference drawn rule on WB pic)
 */
 
 extern crate adapton;
