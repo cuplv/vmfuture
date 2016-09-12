@@ -274,22 +274,31 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
     		//In this case *val synthesizes A + B correctly, now check the cases
     		Some(p)	=> {
     			match p {
+    				//val has type A + B
     				(VTyp::Sum(a,b), e) => {
+    					//update env with "var1 has type A" and check e1 for the given type
     					let tenv1 = map_update(tenv.clone(), var1.clone(), *a);
 		    			match chk_exp(store, tenv1, e1.clone(), ctyp.clone()) {
+		    				//if that passes
 		    				Some(e) => {
+		    					//update env with "var2 has type B" and check e2
 		    					let tenv2 = map_update(tenv, var2.clone(), *b);
 		    					match chk_exp(store, tenv2, e2.clone(), ctyp) {
+		    						//if that passes the Case checks
 		    						Some(e) => Some(PExp::Case(val, var1, e1, var2, e2)),
+		    						//if e2 doesn't check on "var2 has type B"
 		    						None => None
 		    					}
 		    				}
+		    				//if e1 doesn't check on "var1 has type A"
 		    				None => None
 	    				}
     				},
+    				//if the type val synthesizes isn't a sum type
     				_ 	=> None
     			}
     		},
+    		//if val doesn't synthesize a type
     		None 	=> None
     	}
     }
