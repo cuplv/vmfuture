@@ -235,17 +235,17 @@ pub fn chk_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal, vtyp:refl
     //   None    => false, 
     //   Some(v) => (v.vann == *a),
     // }}
-    (VTyp::Sum(a, b), PVal::Inj1(v))	=> { //check if v is of type A
+    (VTyp::Sum(a, _), PVal::Inj1(v))	=> { //check if v is of type A
 	    let vc = v.clone(); //necessary to remove "used after partial move" error?
     	match chk_pvalue(store, tenv, *vc.pval, *a) {
-    		Some(k)	=> Some(PVal::Inj1(v)),
+    		Some(_)	=> Some(PVal::Inj1(v)),
     		None	=> None
     	}
     }
-    (VTyp::Sum(a, b), PVal::Inj2(v))	=> { //check if v is of type B
+    (VTyp::Sum(_, b), PVal::Inj2(v))	=> { //check if v is of type B
 	    let vc = v.clone();
 	    match chk_pvalue(store, tenv, *vc.pval, *b) {
-	    	Some(k) => Some(PVal::Inj2(v)),
+	    	Some(_) => Some(PVal::Inj2(v)),
 	    	None	=> None
 	    }
     }
@@ -267,23 +267,23 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
         Some(e) => Some(PExp::Lam(x, e))
       }
     },
-    (CTyp::F(vt), PExp::Case(val, var1, e1, var2, e2)) => {
+    (CTyp::F(_), PExp::Case(val, var1, e1, var2, e2)) => {
     	match syn_pvalue(store, tenv.clone(), *val.clone().pval) {
     		//In this case *val synthesizes A + B correctly, now check the cases
     		Some(p)	=> {
     			match p {
     				//val has type A + B
-    				(VTyp::Sum(a,b), e) => {
+    				(VTyp::Sum(a,b), _) => {
     					//update env with "var1 has type A" and check e1 for the given type
     					let tenv1 = map_update(tenv.clone(), var1.clone(), *a);
 		    			match chk_exp(store, tenv1, e1.clone(), ctyp.clone()) {
 		    				//if that passes
-		    				Some(e) => {
+		    				Some(_) => {
 		    					//update env with "var2 has type B" and check e2
 		    					let tenv2 = map_update(tenv, var2.clone(), *b);
 		    					match chk_exp(store, tenv2, e2.clone(), ctyp) {
 		    						//if that passes the Case checks
-		    						Some(e) => Some(PExp::Case(val, var1, e1, var2, e2)),
+		    						Some(_) => Some(PExp::Case(val, var1, e1, var2, e2)),
 		    						//if e2 doesn't check on "var2 has type B"
 		    						None => None
 		    					}
@@ -333,7 +333,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
   			Some(p)	=> {
     			match p {
     				//val has type A + B
-    				(VTyp::Sum(a,b), e) => {
+    				(VTyp::Sum(a,b), _) => {
     					let tenv1 = map_update(tenv.clone(), var1.clone(), *a);
     					//check branch 1 on "var1 has type A"
     					let b1type = syn_pexp(store, tenv1, *e1.clone().pexp);
@@ -343,9 +343,9 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
     					
     					//if these two types are consistent (via ctyp_consis) then we typecheck overall
     					let consis = match b1type.clone() {
-    						Some((ct1, e1)) => {
+    						Some((ct1, _)) => {
     							match b2type {
-    								Some ((ct2, e2)) => ctyp_consis(ct1, ct2),
+    								Some ((ct2, _)) => ctyp_consis(ct1, ct2),
     								_ => false
     							}
     						},
@@ -355,7 +355,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
     					if consis {
     						//TODO: this is bad duplication as we found ct1 earlier but not sure how to pull it out from there
     						let res_type = match b1type {
-    							Some((ct1, e1)) => ct1,
+    							Some((ct1, _)) => ct1,
     							_ => panic!("something went horribly wrong in Case syn_pexp")
     						};
     						Some((res_type, PExp::Case(val, var1, e1, var2, e2)))
