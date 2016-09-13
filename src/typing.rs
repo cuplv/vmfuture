@@ -8,7 +8,6 @@ use adapton::collections::*;
 use std::rc::Rc;
 
 pub fn vtyp_consis(vtyp1:refl::VTyp, vtyp2:refl::VTyp) -> bool {
-	//TODO: implement for Sum(Box<VTyp>, Box<VTyp>)
   use syntax::refl::VTyp::*;
   match (vtyp1, vtyp2) {
     (Unk, _) => true,

@@ -1,13 +1,6 @@
 /* Sum_type_extension TODOs:
 Verify correctness of close_pval implementation (dynamics)
-Write chk_pval for Inj1/Inj2
-Write chk_pexp and syn_pexp for Case
 Write working testcase and submit pull request
-
-Qs:
-chk_pexp takes CTyp to check against, what am I checking against?
-Assume context gives type for sum value
-how to syn_pexp for Case when that requires a sum type to check the val against? (reference drawn rule on WB pic)
 */
 
 extern crate adapton;
@@ -45,6 +38,9 @@ fn test_listing_1_ver_a() { listing_1_ver_a() }
 
 #[test]
 fn test_listing_1_ver_b() { listing_1_ver_b() }
+
+#[test]
+fn test_sum_type_extension_1() { sum_type_extension_1() }
 
 #[allow(dead_code)]
 fn listing_1_ver_a() {
@@ -95,6 +91,10 @@ fn listing_1_ver_b() {
     };
   let st = dynamics::initial_state(*example.pexp);
   drop(dynamics::eval(st));
+}
+
+fn sum_type_extension_1() {
+	true;
 }
 
 fn main() {
