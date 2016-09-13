@@ -236,6 +236,20 @@ pub fn chk_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal, vtyp:refl
     //   None    => false, 
     //   Some(v) => (v.vann == *a),
     // }}
+    (VTyp::Sum(a, b), PVal::Inj1(v))	=> { //check if v is of type A
+	    let vc = v.clone(); //necessary to remove "used after partial move" error?
+    	match chk_pvalue(store, tenv, *vc.pval, *a) {
+    		Some(k)	=> Some(PVal::Inj1(v)),
+    		None	=> None
+    	}
+    }
+    (VTyp::Sum(a, b), PVal::Inj2(v))	=> { //check if v is of type B
+	    let vc = v.clone();
+	    match chk_pvalue(store, tenv, *vc.pval, *b) {
+	    	Some(k) => Some(PVal::Inj2(v)),
+	    	None	=> None
+	    }
+    }
     (vt, v)        => panic!("chk_pvalue {:?} {:?}", vt, v),
   }
 }
@@ -243,8 +257,9 @@ pub fn chk_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal, vtyp:refl
 pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::CTyp) -> Option<obj::PExp> {
   use syntax::refl::{CTyp};
   use syntax::obj::PExp;
+  use syntax::refl::VTyp;
   println!("-- chk_pexp {:?}\n <== {:?}", pexp, ctyp);
-  match (ctyp, pexp) {    
+  match (ctyp.clone(), pexp) {    
     // Lambda is checking mode
     (CTyp::Arr(a,c), PExp::Lam(x,e)) => { 
       let tenv = map_update(tenv, x.clone(), *a);
@@ -253,6 +268,31 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
         Some(e) => Some(PExp::Lam(x, e))
       }
     },
+    //TODO: Implement checking for sum types
+    (CTyp::F(vt), PExp::Case(val, var1, e1, var2, e2)) => {
+    	match syn_pvalue(store, tenv.clone(), *val.clone().pval) {
+    		//In this case *val synthesizes A + B correctly, now check the cases
+    		Some(p)	=> {
+    			match p {
+    				(VTyp::Sum(a,b), e) => {
+    					let tenv1 = map_update(tenv.clone(), var1.clone(), *a);
+		    			match chk_exp(store, tenv1, e1.clone(), ctyp.clone()) {
+		    				Some(e) => {
+		    					let tenv2 = map_update(tenv, var2.clone(), *b);
+		    					match chk_exp(store, tenv2, e2.clone(), ctyp) {
+		    						Some(e) => Some(PExp::Case(val, var1, e1, var2, e2)),
+		    						None => None
+		    					}
+		    				}
+		    				None => None
+	    				}
+    				},
+    				_ 	=> None
+    			}
+    		},
+    		None 	=> None
+    	}
+    }
     // For other forms: 
     // Do synthesis and confirm that types "match", using some equiv relation:
     (c, e) => {
@@ -280,6 +320,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
   println!("-- syn_pexp {:?}", exp);
   println!("   tenv: {:?}", tenv);
   match exp {
+  	PExp::Case(val, var1, e1, var2, e2) => None,
     PExp::Ret(v) => { 
     match syn_value(store, tenv, v) {
       None          => None,
