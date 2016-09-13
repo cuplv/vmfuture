@@ -268,7 +268,6 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
         Some(e) => Some(PExp::Lam(x, e))
       }
     },
-    //TODO: Implement checking for sum types
     (CTyp::F(vt), PExp::Case(val, var1, e1, var2, e2)) => {
     	match syn_pvalue(store, tenv.clone(), *val.clone().pval) {
     		//In this case *val synthesizes A + B correctly, now check the cases
@@ -329,7 +328,48 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
   println!("-- syn_pexp {:?}", exp);
   println!("   tenv: {:?}", tenv);
   match exp {
-  	PExp::Case(val, var1, e1, var2, e2) => None,
+  	PExp::Case(val, var1, e1, var2, e2) => {
+  		//check that the value synthesizes A+B
+  		match syn_pvalue(store, tenv.clone(), *val.clone().pval) {
+  			Some(p)	=> {
+    			match p {
+    				//val has type A + B
+    				(VTyp::Sum(a,b), e) => {
+    					let tenv1 = map_update(tenv.clone(), var1.clone(), *a);
+    					//check branch 1 on "var1 has type A"
+    					let b1type = syn_pexp(store, tenv1, *e1.clone().pexp);
+    					let tenv2 = map_update(tenv.clone(), var2.clone(), *b);
+    					//check branch 2 on "var2 has type B"
+    					let b2type = syn_pexp(store, tenv2, *e2.clone().pexp);
+    					
+    					//if these two types are consistent (via ctyp_consis) then we typecheck overall
+    					let consis = match b1type.clone() {
+    						Some((ct1, e1)) => {
+    							match b2type {
+    								Some ((ct2, e2)) => ctyp_consis(ct1, ct2),
+    								_ => false
+    							}
+    						},
+    						_ => false
+    					};
+    					//if consistent return Some(type, exp) else return None
+    					if consis {
+    						//TODO: this is bad duplication as we found ct1 earlier but not sure how to pull it out from there
+    						let res_type = match b1type {
+    							Some((ct1, e1)) => ct1,
+    							_ => panic!("something went horribly wrong in Case syn_pexp")
+    						};
+    						Some((res_type, PExp::Case(val, var1, e1, var2, e2)))
+    					} else { None }
+    				}
+    				//val has some non-sum type
+    				_ => None
+    			}
+  			},
+  			//val doesn't synthesize a type
+  			None => None	
+  		}
+  	},
     PExp::Ret(v) => { 
     match syn_value(store, tenv, v) {
       None          => None,
