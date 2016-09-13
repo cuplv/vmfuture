@@ -193,6 +193,12 @@ Ctx |- pe : C
 {{ com Computation Typing }}
 by
 
+%Ctx |- v : A + B
+%Ctx, x: A |- e1 : C
+%Ctx, y: B |- e2 : C
+%--------------------------------- :: case
+%Ctx |- case(v, x.e1, y.e2) : C
+
 Ctx |- v : A
 Ctx |- e : A -> C
 --------------------- :: app
