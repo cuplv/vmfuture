@@ -1,6 +1,27 @@
 /* Sum_type_extension TODOs:
 Verify correctness of close_pval implementation (dynamics)
 Write working testcase and submit pull request
+
+directions:
+extending sum types to be n-ary (dicts are n-ary products?)
+ML-style recursion (encoding into sum types?)
+Unit type = empty Dict?
+clean up the syntax v_v
+desugar recursive constructors into helper functions?
+
+Go through typechecker code and figure out what Rust things are being used
+To figure out what needs to be reached
+
+
+Pattern matching
+Boolean algebra
+map_fold/maps
+Recursion
+basic list ops
+
+recursion:
+ua.T -> T[ua.T/a] seems to be standard roll/unroll
+iso vs. equirecursive?
 */
 
 extern crate adapton;
@@ -93,8 +114,14 @@ fn listing_1_ver_b() {
   drop(dynamics::eval(st));
 }
 
+#[allow(dead_code)]
 fn sum_type_extension_1() {
-	true;
+	let example : obj::Exp = 
+		olet!{ 	caseEx	= oret!(obj::Val{pval:Box::new(obj::PVal::Inj1(ostr!("hi"))), 
+										 vann:refl::VTyp::Sum(Box::new(refl::VTyp::Str), Box::new(refl::VTyp::Str))});
+				ohalt!()	};
+		let st = dynamics::initial_state(*example.pexp);
+		drop(dynamics::eval(st));
 }
 
 fn main() {

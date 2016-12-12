@@ -63,7 +63,7 @@ pub fn initial_state(e:obj::PExp) -> obj::State {
              nloc: 0,
              stack:list_nil(),
              env:  map_empty(),
-             pexp: e}
+             pexp: e,}
 }
 
 pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
@@ -93,6 +93,9 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
   }
   else {
     let st = match st.pexp {
+      PExp::Typedef(name, t) => {
+      	panic!("not implemented")
+      }
       PExp::Case(v,x,e1,y,e2) => { 
         match *v.pval {
           PVal::Inj1(a) => {
@@ -101,7 +104,7 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
           PVal::Inj2(b) => {
           	State{pexp:*e2.pexp, env:list_push(st.env,(y,b)), ..st}
           }
-          _ => panic!("stuck: case scruntinee is not an injection")
+          _ => panic!("stuck: case scrutinee is not an injection")
         }
       }
       PExp::Prim(prim) => {

@@ -13,6 +13,8 @@ pub mod obj {
   //use super::*;
   //use std::collections::HashMap;
   use adapton::collections::*;
+  use syntax::refl::VTyp;
+  use syntax::refl::TEnv;
 
   pub type Loc = usize;
   pub type Var = String;
@@ -59,7 +61,7 @@ pub mod obj {
     DbJoin(Val,Val,Val,Val),
     Eq(Val,Val),
   }
-  /// Pre-Expressions
+	  /// Pre-Expressions
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum PExp {
     Force(Val),
@@ -79,6 +81,7 @@ pub mod obj {
     Let(Var,Exp,Exp),    
     Prim(Prim),
     Case(Val,Var,Exp,Var,Exp),	//Case breakdown for sum types
+    Typedef(VTyp, VTyp),		//Type definition (first must be Typevar, second an arbitrary type)
   }
   /// Expressions: A Pre-Expression, along with an annotation
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
@@ -119,6 +122,12 @@ pub mod refl {
   //use std::collections::HashMap;
   use adapton::collections::{List};
   
+  // ilist : Nil / Cons int + ilist
+  //constructor rec inputs: type variable, type on the right
+  //ex: A, unit + int * A
+  
+  //roll(injl( () ))
+  
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum CTyp {
     Unk, 
@@ -134,6 +143,7 @@ pub mod refl {
     Db(Box<VTyp>), // "Database" (A multiset of some kind)
     Ref(Box<VTyp>),
     U(Box<CTyp>), // Thunk
+    Typevar(Box<VTyp>),	//should contain a Str (the name of the variable)
   }
   //pub type Dict = HashMap<super::obj::Val,Typ>;
   pub type Dict = List<(super::obj::Val, VTyp)>;

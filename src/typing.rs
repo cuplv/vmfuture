@@ -91,9 +91,15 @@ pub fn chk_exp(store:&obj::Store, env:refl::TEnv, exp:obj::Exp, ctyp:refl::CTyp)
 }
 
 pub fn syn_value(store:&obj::Store, tenv:refl::TEnv, value:obj::Val) -> Option<(refl::VTyp, obj::Val)> {
-  match syn_pvalue(store, tenv, *value.pval) {
-    None           => None,
-    Some((vt, pv)) => { Some((vt.clone(), obj::Val{pval:Box::new(pv), vann:vt})) },
+  use syntax::refl::VTyp;
+  match value.clone().vann {
+  	VTyp::Unk	=> {
+  		match syn_pvalue(store, tenv, *value.pval) {
+		    None           => None,
+		    Some((vt, pv)) => { Some((vt.clone(), obj::Val{pval:Box::new(pv), vann:vt})) },
+		  }
+  	},
+  	t			=> Some((t, value)),
   }
 }
 
