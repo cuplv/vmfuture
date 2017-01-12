@@ -51,7 +51,7 @@ pub fn ctyp_consis(ctyp1:refl::CTyp, ctyp2:refl::CTyp) -> bool {
   }  
 }
 
-pub fn syn_tenv(store:&obj::Store, env:obj::Env) -> Option<(refl::TEnv, obj::Env)> {
+pub fn syn_tenv(store:&obj::Store, tdenv:obj::TDefEnv, env:obj::Env) -> Option<(refl::TEnv, obj::Env)> {
   // perform a fold in the optional-(map,map) monad; None begets None;
   // Some((tenv, env)) leads to further checking and building of tenv and env
   let tenv0 : refl::TEnv = map_empty();
@@ -62,7 +62,7 @@ pub fn syn_tenv(store:&obj::Store, env:obj::Env) -> Option<(refl::TEnv, obj::Env
              match envs {
                None              => None,
                Some((tenv, env)) => {
-                 match syn_value(store, tenv.clone(), v) {
+                 match syn_value(store, tenv.clone(), tdenv.clone(), v) {
                    None          => None,                   
                    Some((vt, v)) => Some( ( map_update(tenv, x.clone(), vt),
                                             map_update(env,  x,          v)) ),
@@ -76,25 +76,25 @@ pub fn tenv_ext(store:&obj::Store, tenv:refl::TEnv, var:obj::Var, typ:refl::VTyp
   map_update(tenv, var, typ)
 }
 
-pub fn syn_exp(store:&obj::Store, tenv:refl::TEnv, exp:obj::Exp) -> Option<(refl::CTyp, obj::Exp)> {
-  match syn_pexp(store, tenv, *exp.pexp) {
+pub fn syn_exp(store:&obj::Store, tenv:refl::TEnv, tdenv:obj::TDefEnv, exp:obj::Exp) -> Option<(refl::CTyp, obj::Exp)> {
+  match syn_pexp(store, tenv, tdenv, *exp.pexp) {
     None           => None,
     Some((ct, pe)) => Some((ct.clone(), obj::Exp{pexp:Box::new(pe), cann:ct})),
   }
 }
 
-pub fn chk_exp(store:&obj::Store, env:refl::TEnv, exp:obj::Exp, ctyp:refl::CTyp) -> Option<obj::Exp> {
-  match chk_pexp(store, env, *exp.pexp, ctyp.clone()) {
+pub fn chk_exp(store:&obj::Store, env:refl::TEnv, tdenv:obj::TDefEnv, exp:obj::Exp, ctyp:refl::CTyp) -> Option<obj::Exp> {
+  match chk_pexp(store, env, tdenv, *exp.pexp, ctyp.clone()) {
     None => None,
     Some(pe) => Some(obj::Exp{pexp:Box::new(pe), cann:ctyp}),
   }
 }
 
-pub fn syn_value(store:&obj::Store, tenv:refl::TEnv, value:obj::Val) -> Option<(refl::VTyp, obj::Val)> {
+pub fn syn_value(store:&obj::Store, tenv:refl::TEnv, tdenv:obj::TDefEnv, value:obj::Val) -> Option<(refl::VTyp, obj::Val)> {
   use syntax::refl::VTyp;
   match value.clone().vann {
   	VTyp::Unk	=> {
-  		match syn_pvalue(store, tenv, *value.pval) {
+  		match syn_pvalue(store, tenv, tdenv, *value.pval) {
 		    None           => None,
 		    Some((vt, pv)) => { Some((vt.clone(), obj::Val{pval:Box::new(pv), vann:vt})) },
 		  }
@@ -103,17 +103,28 @@ pub fn syn_value(store:&obj::Store, tenv:refl::TEnv, value:obj::Val) -> Option<(
   }
 }
 
-pub fn chk_value(store:&obj::Store, tenv:refl::TEnv, value:obj::Val, vtyp:refl::VTyp) -> Option<obj::Val> {
-  match chk_pvalue(store, tenv, *value.pval, vtyp.clone()) {
+pub fn chk_value(store:&obj::Store, tenv:refl::TEnv, tdenv:obj::TDefEnv, value:obj::Val, vtyp:refl::VTyp) -> Option<obj::Val> {
+  match chk_pvalue(store, tenv, tdenv, *value.pval, vtyp.clone()) {
     None     => None,
     Some(pv) => { Some(obj::Val{pval:Box::new(pv), vann:vtyp}) }
   }
 }
 
-pub fn syn_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal) -> Option<(refl::VTyp, obj::PVal)> {
+pub fn syn_pvalue(store:&obj::Store, tenv:refl::TEnv, tdenv:obj::TDefEnv, value:obj::PVal) -> Option<(refl::VTyp, obj::PVal)> {
   use syntax::refl::VTyp;
   use syntax::obj::PVal;
   match value {
+  	PVal::Roll(t, v) => { match map_find(&tdenv, &t) {
+  			None 		=> None,
+  			Some(xt) 	=> { Some((xt, PVal::Roll(t, v))) }
+	  	}
+  	}
+  	PVal::Unroll(r) => {
+  		match *r.pval {
+  			PVal::Roll(_, v) => syn_pvalue(store, tenv, tdenv, *v.pval),
+  			_ => panic!("not roll as arg to unroll")
+  		}
+  	}
     PVal::Var(x)  => { match map_find(&tenv, &x) {
       None     => None,
       Some(xt) => {
@@ -135,7 +146,7 @@ pub fn syn_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal) -> Option
         Some((t, PVal::Db(list_nil())))
       } else {
         let (d,db) = list_pop(db) ;
-        match syn_value(store, tenv.clone(), d) {
+        match syn_value(store, tenv.clone(), tdenv.clone(), d) {
           None => None,
           Some((dt, d)) => {
             let db_out = list_cons(d, list_nil());
@@ -143,7 +154,7 @@ pub fn syn_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal) -> Option
               match out {
                 None => None,
                 Some((dt, db)) => 
-                  match syn_value(store, tenv.clone(), d) {
+                  match syn_value(store, tenv.clone(), tdenv.clone(), d) {
                     None => None,
                     Some((dt2, d)) => { 
                       if dt == dt2 { Some((dt, list_cons(d, db))) }
@@ -171,8 +182,8 @@ pub fn syn_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal) -> Option
                      Some((dt, d)) => {
                        let k : obj::Val = k ;
                        let v : obj::Val = v ;
-                       match ( syn_value(store, tenv.clone(), k.clone()),
-                               syn_value(store, tenv.clone(), v) 
+                       match ( syn_value(store, tenv.clone(), tdenv.clone(), k.clone()),
+                               syn_value(store, tenv.clone(), tdenv.clone(), v) 
                        ) {
                          (Some((_kt, k)), Some((vt, v))) => { Some(
                            ( map_update(dt, k.clone(), vt),
@@ -188,9 +199,9 @@ pub fn syn_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal) -> Option
       }
     }
     PVal::Thunk(env, e) => { 
-      match syn_tenv(store, env) { 
+      match syn_tenv(store, tdenv.clone(), env) { 
         None              => None,
-        Some((tenv, env)) => match syn_exp(store, tenv, e) {
+        Some((tenv, env)) => match syn_exp(store, tenv, tdenv.clone(), e) {
           None         => None,
           Some((c, e)) => Some( (VTyp::U(Box::new(c)),
                                  PVal::Thunk(env, e)) )
@@ -200,18 +211,18 @@ pub fn syn_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal) -> Option
   }
 }
 
-pub fn chk_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal, vtyp:refl::VTyp) -> Option<obj::PVal> {
+pub fn chk_pvalue(store:&obj::Store, tenv:refl::TEnv, tdenv:obj::TDefEnv, value:obj::PVal, vtyp:refl::VTyp) -> Option<obj::PVal> {
   use syntax::refl::VTyp;
   use syntax::obj::PVal;
   match (vtyp, value) {
     (VTyp::Str, PVal::Str(s)) => Some(PVal::Str(s)),
     (VTyp::Num, PVal::Num(n)) => Some(PVal::Num(n)),
     (VTyp::U(c), PVal::Thunk(env, e)) => { 
-      match syn_tenv(store, env) 
+      match syn_tenv(store, tdenv.clone(), env) 
       { 
         None => None,
         Some((tenv, env)) => {
-          match chk_exp(store, tenv, e, *c) {
+          match chk_exp(store, tenv, tdenv.clone(), e, *c) {
             None    => None,
             Some(e) => Some(PVal::Thunk(env, e))
           }
@@ -219,7 +230,7 @@ pub fn chk_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal, vtyp:refl
       }
     }
     (VTyp::U(c), PVal::OpenThunk(e)) => { 
-      match chk_exp(store, tenv, e, *c) {
+      match chk_exp(store, tenv, tdenv, e, *c) {
         None => None,
         Some(e) => Some(PVal::OpenThunk(e))
       }        
@@ -243,14 +254,14 @@ pub fn chk_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal, vtyp:refl
     // }}
     (VTyp::Sum(a, _), PVal::Inj1(v))	=> { //check if v is of type A
 	    let vc = v.clone(); //necessary to remove "used after partial move" error?
-    	match chk_pvalue(store, tenv, *vc.pval, *a) {
+    	match chk_pvalue(store, tenv, tdenv, *vc.pval, *a) {
     		Some(_)	=> Some(PVal::Inj1(v)),
     		None	=> None
     	}
     }
     (VTyp::Sum(_, b), PVal::Inj2(v))	=> { //check if v is of type B
 	    let vc = v.clone();
-	    match chk_pvalue(store, tenv, *vc.pval, *b) {
+	    match chk_pvalue(store, tenv, tdenv, *vc.pval, *b) {
 	    	Some(_) => Some(PVal::Inj2(v)),
 	    	None	=> None
 	    }
@@ -259,7 +270,7 @@ pub fn chk_pvalue(store:&obj::Store, tenv:refl::TEnv, value:obj::PVal, vtyp:refl
   }
 }
 
-pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::CTyp) -> Option<obj::PExp> {
+pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, tdenv:obj::TDefEnv, pexp:obj::PExp, ctyp:refl::CTyp) -> Option<obj::PExp> {
   use syntax::refl::{CTyp};
   use syntax::obj::PExp;
   use syntax::refl::VTyp;
@@ -268,13 +279,13 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
     // Lambda is checking mode
     (CTyp::Arr(a,c), PExp::Lam(x,e)) => { 
       let tenv = map_update(tenv, x.clone(), *a);
-      match chk_exp(store, tenv, e, *c) {
+      match chk_exp(store, tenv, tdenv, e, *c) {
         None => None,
         Some(e) => Some(PExp::Lam(x, e))
       }
     },
     (CTyp::F(_), PExp::Case(val, var1, e1, var2, e2)) => {
-    	match syn_pvalue(store, tenv.clone(), *val.clone().pval) {
+    	match syn_pvalue(store, tenv.clone(), tdenv.clone(), *val.clone().pval) {
     		//In this case *val synthesizes A + B correctly, now check the cases
     		Some(p)	=> {
     			match p {
@@ -282,12 +293,12 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
     				(VTyp::Sum(a,b), _) => {
     					//update env with "var1 has type A" and check e1 for the given type
     					let tenv1 = map_update(tenv.clone(), var1.clone(), *a);
-		    			match chk_exp(store, tenv1, e1.clone(), ctyp.clone()) {
+		    			match chk_exp(store, tenv1, tdenv.clone(), e1.clone(), ctyp.clone()) {
 		    				//if that passes
 		    				Some(_) => {
 		    					//update env with "var2 has type B" and check e2
 		    					let tenv2 = map_update(tenv, var2.clone(), *b);
-		    					match chk_exp(store, tenv2, e2.clone(), ctyp) {
+		    					match chk_exp(store, tenv2, tdenv.clone(), e2.clone(), ctyp) {
 		    						//if that passes the Case checks
 		    						Some(_) => Some(PExp::Case(val, var1, e1, var2, e2)),
 		    						//if e2 doesn't check on "var2 has type B"
@@ -309,7 +320,7 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
     // For other forms: 
     // Do synthesis and confirm that types "match", using some equiv relation:
     (c, e) => {
-      match syn_pexp(store, tenv, e) {
+      match syn_pexp(store, tenv, tdenv, e) {
         None => None,
         Some((c2, e)) => {
           // XXX: Subsume rule: 
@@ -325,7 +336,7 @@ pub fn chk_pexp(store:&obj::Store, tenv:refl::TEnv, pexp:obj::PExp, ctyp:refl::C
   }
 }
 
-pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(refl::CTyp, obj::PExp)> {
+pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, tdenv:obj::TDefEnv, exp:obj::PExp) -> Option<(refl::CTyp, obj::PExp)> {
   use syntax::obj::PExp;
   use syntax::obj::Prim;
   use syntax::refl::CTyp;
@@ -335,17 +346,17 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
   match exp {
   	PExp::Case(val, var1, e1, var2, e2) => {
   		//check that the value synthesizes A+B
-  		match syn_pvalue(store, tenv.clone(), *val.clone().pval) {
+  		match syn_pvalue(store, tenv.clone(), tdenv.clone(), *val.clone().pval) {
   			Some(p)	=> {
     			match p {
     				//val has type A + B
     				(VTyp::Sum(a,b), _) => {
     					let tenv1 = map_update(tenv.clone(), var1.clone(), *a);
     					//check branch 1 on "var1 has type A"
-    					let b1type = syn_pexp(store, tenv1, *e1.clone().pexp);
+    					let b1type = syn_pexp(store, tenv1, tdenv.clone(), *e1.clone().pexp);
     					let tenv2 = map_update(tenv.clone(), var2.clone(), *b);
     					//check branch 2 on "var2 has type B"
-    					let b2type = syn_pexp(store, tenv2, *e2.clone().pexp);
+    					let b2type = syn_pexp(store, tenv2, tdenv.clone(), *e2.clone().pexp);
     					
     					//if these two types are consistent (via ctyp_consis) then we typecheck overall
     					let consis = match b1type.clone() {
@@ -376,13 +387,13 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
   		}
   	},
     PExp::Ret(v) => { 
-    match syn_value(store, tenv, v) {
+    match syn_value(store, tenv, tdenv, v) {
       None          => None,
       Some((vt, v)) => Some( (refl::CTyp::F(Box::new(vt)), 
                               obj::PExp::Ret(v)) )
     }},    
     PExp::Ann(e, et) => {
-      match chk_pexp(store, tenv, *e, et.clone()) {
+      match chk_pexp(store, tenv, tdenv, *e, et.clone()) {
         None    => None,
         Some(e) => Some((et.clone(), PExp::Ann(Box::new(e), et)))
       }
@@ -391,8 +402,8 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
       Some((CTyp::Unk, PExp::Prim(Prim::Halt))) 
     }
     PExp::Prim(Prim::Eq(v1, v2)) => {
-      match (syn_value(store, tenv.clone(), v1),
-             syn_value(store, tenv,         v2)) {
+      match (syn_value(store, tenv.clone(), tdenv.clone(), v1),
+             syn_value(store, tenv,         tdenv.clone(), v2)) {
         (Some((_v1t, v1)), Some((_v2t, v2))) => {
           Some((CTyp::F( Box::new( VTyp::Bool ) ),
                 PExp::Prim(Prim::Eq(v1, v2))))
@@ -401,7 +412,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
       }      
     },
     PExp::Prim(Prim::DbOpen(v)) => {
-      match chk_value(store, tenv, v, refl::VTyp::Str) {
+      match chk_value(store, tenv, tdenv, v, refl::VTyp::Str) {
         None => None,
         Some(v) => {
           Some(( CTyp::F(Box::new(VTyp::Db(Box::new(VTyp::Unk)))), 
@@ -410,12 +421,12 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
       }
     },
     PExp::Prim(Prim::DbFilter(v1, v2)) => {
-      match syn_value(store, tenv.clone(), v1) {
+      match syn_value(store, tenv.clone(), tdenv.clone(), v1) {
         None => None,
         Some(( VTyp::Db( a ), v1 )) => {
           let f_bool = CTyp::F( Box::new(VTyp::Bool ) );
           let f_db   = CTyp::F( Box::new(VTyp::Db(a.clone())) ) ;
-          match chk_value( store, tenv, v2, 
+          match chk_value( store, tenv, tdenv.clone(), v2, 
                            VTyp::U(Box::new(CTyp::Arr(a, Box::new( f_bool ) ))) ) {            
             None => None,
             Some(v2) => {
@@ -427,10 +438,10 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
       }
     },
     PExp::Prim(Prim::DbJoin(v1, v2, v3, v4)) => {
-      match  (syn_value(store, tenv.clone(), v1),
-              syn_value(store, tenv.clone(), v2),
-              syn_value(store, tenv.clone(), v3),
-              syn_value(store, tenv.clone(), v4)) {
+      match  (syn_value(store, tenv.clone(), tdenv.clone(), v1),
+              syn_value(store, tenv.clone(), tdenv.clone(), v2),
+              syn_value(store, tenv.clone(), tdenv.clone(), v3),
+              syn_value(store, tenv.clone(), tdenv.clone(), v4)) {
         ( Some((v1t, v1)), Some((_v2t, v2)), 
           Some((v3t, v3)), Some((_v4t, v4)) ) => {          
           match(v1t.clone(), v3t.clone()) {
@@ -474,11 +485,11 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
       }
     },
     PExp::Let(x,e1,e2) => {
-      match syn_exp(store, tenv.clone(), e1) {
+      match syn_exp(store, tenv.clone(), tdenv.clone(), e1) {
         None => None,
         Some((CTyp::F(a), e1)) => {
           let tenv = map_update(tenv, x.clone(), *a) ;
-          match syn_exp(store, tenv, e2) {
+          match syn_exp(store, tenv, tdenv.clone(), e2) {
             None => None,            
             Some((c, e2)) => {
               Some((c, PExp::Let(x,e1,e2)))
@@ -488,10 +499,10 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
         _ => None,
       }},      
     PExp::App(e,v) => {
-      match syn_exp(store, tenv.clone(), e) {
+      match syn_exp(store, tenv.clone(), tdenv.clone(), e) {
         None => None,
         Some((CTyp::Arr(a, c), e)) => {
-          match chk_value(store, map_empty(), v, *a) {
+          match chk_value(store, map_empty(), tdenv.clone(), v, *a) {
             None => None,
             Some(v) => {
               Some((*c, PExp::App(e, v)))
@@ -502,7 +513,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
       }
     },
     PExp::Force(v) => {
-      match syn_value(store, tenv, v) {
+      match syn_value(store, tenv, tdenv, v) {
         None => None,
         Some((VTyp::U(c), v)) => {
           Some((*c, PExp::Force(v)))
@@ -511,10 +522,10 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
       }
     }
     PExp::Proj(v1, v2) => {
-      match syn_value(store, tenv.clone(), v1) {
+      match syn_value(store, tenv.clone(), tdenv.clone(), v1) {
         None => None,
         Some((VTyp::Unk, v1)) => {
-          match syn_value(store, tenv, v2) {
+          match syn_value(store, tenv, tdenv.clone(), v2) {
             None => None,
             Some((_v2t, v2)) => {
               Some((CTyp::F(Box::new(VTyp::Unk)), // imprecise
@@ -525,7 +536,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
         // TODO: Add case where value of v1 is unknown (could be a variable)
         //
         Some((VTyp::Dict(delta), v1)) => {
-          match syn_value(store, tenv, v2) {
+          match syn_value(store, tenv, tdenv.clone(), v2) {
             None => None,
             Some((_v2t, v2)) => {
               match map_find(&*delta, &v2) {
@@ -545,7 +556,7 @@ pub fn syn_pexp(store:&obj::Store, tenv:refl::TEnv, exp:obj::PExp) -> Option<(re
     pe => panic!("syn_pexp {:?}", pe)
   }
 }
-pub fn chk_stack(store:&obj::Store, stack:obj::Stack, typ:refl::CTyp) -> Option<obj::Stack> {
+pub fn chk_stack(store:&obj::Store, stack:obj::Stack, tdenv:obj::TDefEnv, typ:refl::CTyp) -> Option<obj::Stack> {
   use adapton::collections::*;
   if list_is_empty(&stack) { return Some(list_nil()) }
   else {
@@ -553,20 +564,20 @@ pub fn chk_stack(store:&obj::Store, stack:obj::Stack, typ:refl::CTyp) -> Option<
     match (frame, typ) {
       (obj::Frame::App(v), 
        refl::CTyp::Arr(a,c)) => { 
-        match ( chk_value(store, list_nil(), v, *a), 
-                chk_stack(store, stack, *c) ) {
+        match ( chk_value(store, list_nil(), tdenv.clone(), v, *a), 
+                chk_stack(store, stack, tdenv.clone(), *c) ) {
           (Some(v), Some(stack)) => Some(list_cons(obj::Frame::App(v), stack)),
           _                      => None,
         }},
       (obj::Frame::Let(x,env,e) ,
        refl::CTyp::F(a)) => {
-        match syn_tenv(store, env) { 
+        match syn_tenv(store, tdenv.clone(), env) { 
           None => None,
           Some((tenv, env)) => {
             let tenv = tenv_ext(store, tenv, x.clone(), *a) ;
-            match syn_exp(store, tenv, e) {
+            match syn_exp(store, tenv, tdenv.clone(), e) {
               None => None,
-              Some((et, e)) => match chk_stack(store, stack, et) {
+              Some((et, e)) => match chk_stack(store, stack, tdenv.clone(), et) {
                 None => None,
                 Some(stack) => {
                   Some(list_cons(obj::Frame::Let(x,env,e), stack))
@@ -589,20 +600,20 @@ pub fn chk_state(st:obj::State) -> Option<obj::State> {
                      match store {
                        None => None,
                        Some(store) => {
-                         match syn_value(&store0, map_empty(), v) {
+                         match syn_value(&store0, map_empty(), map_empty(), v) {
                            Some((_, vt)) => Some(map_update(store, l, vt)),
                            None          => None,
                          }}}));  
   match store {
     None => None,
     Some(store) => {
-      match syn_tenv(&store, st.env) {
+      match syn_tenv(&store, st.tenv.clone(), st.env) {
         None => None,
         Some((tenv, env)) => {
-          match syn_pexp(&store, tenv, st.pexp) {
+          match syn_pexp(&store, tenv, st.tenv.clone(), st.pexp) {
             None            => None,
             Some((c, pexp)) => { 
-              match chk_stack(&store, st.stack, c) {
+              match chk_stack(&store, st.stack, st.tenv.clone(), c) {
                 None        => None,
                 Some(stack) => {
                   Some(obj::State{
@@ -610,7 +621,8 @@ pub fn chk_state(st:obj::State) -> Option<obj::State> {
                     stack:stack,
                     env:  env,
                     pexp: pexp,
+                    tenv: st.tenv,
                     ..st
                   })
                 }}}}}}}}
-}     
+}

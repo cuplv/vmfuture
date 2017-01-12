@@ -50,6 +50,13 @@ pub fn close_pval(env:&obj::Env, v:obj::PVal) -> obj::PVal {
     },
     Inj1(v)       => Inj1(close_val(env, v)),
     Inj2(v)       => Inj2(close_val(env, v)),
+    Roll(t, v)	  => Roll(t, close_val(env, v)),
+    Unroll(r) => {
+    	match *r.pval {
+    		Roll(_, v) => {close_pval(env, *v.pval)}
+    		_ => panic!("not roll as argument to unroll")
+    	}
+    }
   }
 }
 
@@ -63,7 +70,8 @@ pub fn initial_state(e:obj::PExp) -> obj::State {
              nloc: 0,
              stack:list_nil(),
              env:  map_empty(),
-             pexp: e,}
+             pexp: e,
+			 tenv: map_empty(),}
 }
 
 pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
@@ -93,8 +101,8 @@ pub fn small_step(st:obj::State) -> Result<obj::State, obj::State> {
   }
   else {
     let st = match st.pexp {
-      PExp::Typedef(name, t) => {
-      	panic!("not implemented")
+      PExp::Typedef(name, t, next) => {
+      	State{pexp:*next.pexp, tenv:list_push(st.tenv,(name,t)), ..st}
       }
       PExp::Case(v,x,e1,y,e2) => { 
         match *v.pval {

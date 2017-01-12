@@ -22,6 +22,7 @@ pub mod obj {
   pub type Stack = List<Frame>;
   pub type Env   = List<(Var, Val)>;
   pub type Store = List<(Loc, Val)>;
+  pub type TDefEnv  = List<(VTyp, VTyp)>;
 
   /// State of VM Evaluation:
   /// A Store, an Environment, a Stack (of Evaluation Frames), and an expression.
@@ -34,6 +35,8 @@ pub mod obj {
     pub stack: Stack,
     /// Using a PExp here, not an Exp, because of https://github.com/rust-lang/rust/issues/16223
     pub pexp:  PExp, 
+    /// State extended with typing context for type definitions
+    pub tenv:  TDefEnv,
   }
   /// Evaluation Contexts (one "Frame" only); The full context is
   /// given by a stack of frames.
@@ -78,11 +81,13 @@ pub mod obj {
     Get(Val),
     Set(Val,Val),
     Ext(Val,Val,Val),
-    Let(Var,Exp,Exp),    
+    Let(Var,Exp,Exp),
     Prim(Prim),
     Case(Val,Var,Exp,Var,Exp),	//Case breakdown for sum types
-    Typedef(VTyp, VTyp),		//Type definition (first must be Typevar, second an arbitrary type)
+    Typedef(VTyp, VTyp, Exp),	//Type definition (first must be Typevar, second an arbitrary type, followed by trailing exp)
+    //NTypeDef(VTyp, List<String>, VTyp, Exp), //Type definition (Typevar, list of names (Nil Cons etc), arbitrary type, trailing exp)
   }
+    
   /// Expressions: A Pre-Expression, along with an annotation
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub struct Exp {    
@@ -101,7 +106,15 @@ pub mod obj {
     Loc(Loc),
     Var(Var),
     Inj1(Val), // 
-    Inj2(Val), // Constructors for sum-typed values    
+    Inj2(Val), // Constructors for sum-typed values
+    Roll(VTyp, Val),
+    Unroll(Val),
+    //add new values for named rec types? with tag and value data
+    //declaration adds to typing context types for the tags: () -> ilist, int * ilist -> ilist
+    //then second type is type for value and first type is expected type for input
+    //look at adt.js libraries, implement simple program (lists + list reversal?) in as many as you can find and in lam-VMF 
+    
+    //probs: arrow type is CTyp rather than VTyp
   }
   /// Values: A Pre-Value, along with an annotation
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
@@ -122,12 +135,6 @@ pub mod refl {
   //use std::collections::HashMap;
   use adapton::collections::{List};
   
-  // ilist : Nil / Cons int + ilist
-  //constructor rec inputs: type variable, type on the right
-  //ex: A, unit + int * A
-  
-  //roll(injl( () ))
-  
   #[derive(Debug,PartialEq,Eq,Hash,Clone)]
   pub enum CTyp {
     Unk, 
@@ -143,7 +150,7 @@ pub mod refl {
     Db(Box<VTyp>), // "Database" (A multiset of some kind)
     Ref(Box<VTyp>),
     U(Box<CTyp>), // Thunk
-    Typevar(Box<VTyp>),	//should contain a Str (the name of the variable)
+    Typevar(String),	//should contain a Str (the name of the variable)
   }
   //pub type Dict = HashMap<super::obj::Val,Typ>;
   pub type Dict = List<(super::obj::Val, VTyp)>;
