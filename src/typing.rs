@@ -625,4 +625,4 @@ pub fn chk_state(st:obj::State) -> Option<obj::State> {
                     ..st
                   })
                 }}}}}}}}
-}
+}//comment
